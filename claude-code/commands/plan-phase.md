@@ -18,12 +18,16 @@ not skip a step:
    confirmed finding into the plan with an ID (C1, C2, …) so it's traceable.
 5. **Invariants.** List what must not break (frozen contracts, do-not-touch,
    security / privacy / data / money) and assert each in the verification section.
-6. **Sequence.** Foundation first (the dependency root, gated green), then
-   independent fan-out if parallelizable.
+6. **Decompose & sequence.** If the feature is large, split it into
+   independently-shippable phases — each with its own done-criteria and
+   verification gate, sized to run through `/kickoff-phase` in one fresh session.
+   Order them foundation-first (the dependency root, gated green), then
+   independent fan-out where parallelizable.
 7. **Runnable gates.** Exact commands with expected output — never "test it" — and
    note what each check can't catch. A clean diff is not evidence; run it.
 8. **Rollback + out-of-scope + known-untestable.** Name them.
 
 State the risk tier up front (touches auth / data / money / security → full
 ceremony incl. the §4 review; otherwise lighter). Write the plan to a durable
-file. Then request approval.
+file — label each phase so `/kickoff-phase` can target it by name. Then request
+approval.
