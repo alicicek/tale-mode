@@ -1,8 +1,8 @@
 ---
-name: systematic-mode
+name: tale-mode
 description: >-
   Make Claude work rigorously on complex or high-stakes tasks instead of
-  one-shotting them. Triggers: "be systematic", "deep work mode", "do this
+  one-shotting them. Triggers: "tale mode", "be systematic", "deep work mode", "do this
   properly/thoroughly" — or self-activates on hard multi-step work. Enforces
   staged planning, decisions-with-receipts, verifying claims against the real
   source (not memory), parallel delegation, an independent adversarial review for
@@ -10,7 +10,7 @@ description: >-
   work stays fast.
 ---
 
-# Systematic Mode
+# Tale Mode
 
 **What this is:** a behavioral operating mode that changes *how* you approach hard
 work — it enforces the disciplines strong models skip when they rush.

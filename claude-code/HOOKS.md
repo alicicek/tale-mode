@@ -2,7 +2,7 @@
 
 Hooks run shell commands automatically, so "green before you continue" is enforced
 by the harness instead of relying on the model to remember. This complements
-Systematic Mode §4 (verify against ground truth) — the model still reasons, but a
+Tale Mode §4 (verify against ground truth) — the model still reasons, but a
 typecheck/lint failure is now a hard stop.
 
 Add a `PostToolUse` hook to `.claude/settings.json` that runs your project's real

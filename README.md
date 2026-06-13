@@ -1,4 +1,4 @@
-# Systematic Mode
+# Tale Mode
 
 A drop-in operating mode that makes Claude do the rigorous work it tends to skip
 when it's moving fast: plan in explicit stages, back every decision with a source,
@@ -24,7 +24,7 @@ Strong models, under time pressure, predictably cut the same corners:
 - declare "done" from the diff without running anything
 - either over-engineer trivia or take shortcuts on the hard part
 
-Systematic Mode is a checklist-as-skill that targets each of these.
+Tale Mode is a checklist-as-skill that targets each of these.
 
 ## What's inside
 
@@ -42,8 +42,7 @@ substantial / high-stakes work:
 
 ## What makes it different
 
-Beyond the general bones (stage map → delegate → verify → self-critique, domain
-patterns, triggers), Systematic Mode adds the three disciplines that separate "looks
+Beyond the general bones (stage map → delegate → verify → self-critique, domain patterns, triggers), Tale Mode adds the three disciplines that separate "looks
 right" from **is right**:
 
 1. **Receipts / provenance** — decisions trace to a source; nothing laundered in.
@@ -63,12 +62,12 @@ Plus a **right-size throttle** so it doesn't ceremony-ize trivial tasks, and
 **Claude Code** (project scope — swap `.claude/` → `~/.claude/` for all projects):
 
 ```
-cp SKILL.md                          .claude/skills/systematic-mode/SKILL.md
+cp SKILL.md                          .claude/skills/tale-mode/SKILL.md
 cp claude-code/agents/plan-reviewer.md   .claude/agents/plan-reviewer.md
 cp claude-code/commands/*.md             .claude/commands/
 ```
 
-**claude.ai app:** put `SKILL.md` in a folder named `systematic-mode`, zip the
+**claude.ai app:** put `SKILL.md` in a folder named `tale-mode`, zip the
 folder, upload at `claude.ai/customize/skills`.
 
 > **Platform support.** The full skill — including parallel delegation (§3) and
@@ -79,7 +78,7 @@ folder, upload at `claude.ai/customize/skills`.
 
 ## Use it
 
-Triggers: **"be systematic"**, **"deep work mode"**, **"do this properly"** — or it
+Triggers: **"tale mode"**, **"be systematic"**, **"deep work mode"**, **"do this properly"** — or it
 self-activates on complex multi-step work. In Claude Code:
 
 - `/plan-phase <task>` — plan a task to the full bar (verify-against-code,
