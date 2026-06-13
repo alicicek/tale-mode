@@ -1,20 +1,40 @@
 # Tale Mode
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Claude Code skill](https://img.shields.io/badge/Claude%20Code-skill-d97757.svg)](https://docs.claude.com/en/docs/claude-code/skills)
+[![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#contributing)
 
 **Make Claude work like a careful senior engineer, not an eager intern.**
 
-A drop-in operating mode (a [skill](https://docs.claude.com/en/docs/claude-code/skills))
-that enforces the disciplines strong models skip when they rush: plan before
-acting, back every decision with a source, **verify claims against the real files
-(not memory)**, get an *independent* review on risky work, and keep durable notes.
+Tale Mode is a drop-in operating mode — a
+[skill](https://docs.claude.com/en/docs/claude-code/skills) — that enforces the
+disciplines strong models skip when they rush: plan before acting, back every
+decision with a source, **verify claims against the real files (not memory)**, get
+an *independent* review on risky work, and keep durable notes. It right-sizes
+itself, so a typo fix stays a typo fix.
 
-
-> **Honest scope:** this does **not** make the model smarter or close any
+> **Honest scope.** This does **not** make the model smarter or close any
 > raw-capability gap. It changes *how* it works — trading a little speed for
 > correctness you can trust.
 
-**Contents:** [Problem](#the-problem-it-targets) · [What's inside](#whats-inside) · [Examples](#examples) · [What's different](#what-makes-it-different) · [Install](#install) · [Use it](#use-it) · [Effort & orchestration](#how-to-operate-it-well--effort--orchestration) · [Does it work?](#does-it-actually-work)
+**Contents:** [Quick start](#quick-start) · [Problem](#the-problem-it-targets) · [How it works](#how-it-works) · [Examples](#examples) · [Use it](#use-it) · [What's different](#what-makes-it-different) · [Install](#install) · [Tuning](#tuning--effort--orchestration) · [Does it work?](#does-it-actually-work) · [What's in the box](#whats-in-the-box) · [Contributing](#contributing)
+
+---
+
+## Quick start
+
+```bash
+git clone https://github.com/alicicek/tale-mode && cd tale-mode && ./install.sh
+```
+
+Start a **new** Claude Code session (so it loads), then just ask:
+
+> **tale mode** — refactor the auth middleware and prove it still blocks expired tokens
+
+That's it. It picks how much process the task deserves, plans, verifies against the
+real code, and tells you what it couldn't check. For bigger work, reach for the
+[`/plan-phase` → `/kickoff-phase` pipeline](#use-it). No Claude Code? See
+[other hosts](#install).
 
 ## The problem it targets
 
@@ -31,19 +51,29 @@ Strong models, under time pressure, predictably cut the same corners:
 
 Tale Mode is a checklist-as-skill that targets each of these.
 
-## What's inside
+## How it works
 
-A **right-size throttle** (trivial work stays fast) plus an 8-step loop for
-substantial / high-stakes work:
+A **right-size throttle** decides how much process a task earns (and, for big work,
+how many phases to split it into) — so trivial work stays fast. Above that floor it
+runs an 8-step loop:
 
-1. **Map** the stages + define "done" before acting
-2. **Receipts** — every decision quotes a source or is labeled judgment
-3. **Delegate** independent strands to parallel sub-agents (and *don't* split coherent thought)
-4. **Verify twice** — internal consistency *and* against ground truth (a clean diff isn't evidence)
-5. **Critique** — always self-critique (name the most consequential weakness); for high-stakes, a **separate** adversarial reviewer agent
-6. **Ask** on genuine forks instead of guessing
-7. **Persist** progress to a durable file (the conversation isn't memory)
-8. **Surface gaps** — name what's untested / out of scope
+| # | Step | What it forces |
+|---|------|----------------|
+| 1 | **Map** | Stage the work + define "done" before acting |
+| 2 | **Receipts** | Every decision quotes a source or is labeled judgment |
+| 3 | **Delegate** | Independent strands to parallel sub-agents (*don't* split coherent thought) |
+| 4 | **Verify twice** | Internal consistency **and** against ground truth — a clean diff isn't evidence |
+| 5 | **Critique** | Always self-critique; for high-stakes, a **separate** adversarial reviewer |
+| 6 | **Ask** | Surface genuine forks instead of guessing |
+| 7 | **Persist** | Progress to a durable file — the conversation isn't memory |
+| 8 | **Surface gaps** | Name what's untested / out of scope |
+
+The three tiers the throttle picks from:
+
+- 🟢 **Trivial** — a typo, a rename, a one-liner: just do it. No ceremony.
+- 🟡 **Substantial** — multi-file but reversible, no auth/money/data: the light loop.
+- 🔴 **High-stakes** — auth / money / data / security, or hard to undo: the full loop,
+  including the independent reviewer and durable notes.
 
 ## Examples
 
@@ -90,19 +120,40 @@ Reproduces against ground truth — a real Safari/WebKit render, not just Chromi
 devtools — reads the actually-served files, and won't call it "fixed" off a clean
 diff. (The discipline that catches cross-browser bugs in one pass instead of five.)
 
-**🛠 Slash commands**
+## Use it
 
-> /plan-phase add rate-limiting to the public API
+**Triggers:** **"tale mode"**, **"tale on"**, **"go deep"** — or it
+self-activates on complex multi-step work.
 
-A verified, receipts-backed, independently-reviewed plan you approve before any
-code is written. A large feature comes back **split into independently-shippable
-phases**, each sized for one `/kickoff-phase` session.
+**Slash commands** (Claude Code):
 
-> /kickoff-phase PLAN.md 3
+- `/plan-phase <task>` — plan to the full bar (verify-against-code, receipts,
+  independent review, runnable gates) before any code. Large features come back
+  **decomposed into independently-shippable phases**, each sized for one session.
+- `/kickoff-phase <plan-file> <phase>` — implement **one** phase of a larger plan in
+  a fresh session. **Runs under plan mode**: re-verifies the plan against the
+  current code, interviews you, and waits for your approval before writing anything.
 
-Builds **one** phase of a larger plan in a fresh session. Runs **under plan mode**:
-re-verifies the plan against the current code, interviews you, and waits for your
-approval before writing anything — then builds only that phase and stops.
+### The pipeline — one phase per session
+
+Big features are built one phase at a time, each in its own session, so the working
+context stays lean (a long session re-reads its whole window every turn):
+
+```text
+/plan-phase <big feature>        → phased plan on disk (Phase 1..N), approved
+   /clear  → fresh session
+/kickoff-phase plan.md "Phase 1" → plan mode → you approve → build → PR → stop
+   /clear  → fresh session
+/kickoff-phase plan.md "Phase 2" → …
+```
+
+The plan file on disk is the durable hand-off between sessions; `/clear` between
+phases keeps each one fast. For a small, single-session task, skip the pipeline and
+just use `/plan-phase` (or a trigger).
+
+**Optional deterministic gates** (run typecheck/lint automatically after edits, so
+"green before you continue" is enforced by the harness, not the model's memory):
+see [`claude-code/HOOKS.md`](claude-code/HOOKS.md).
 
 ## What makes it different
 
@@ -114,8 +165,8 @@ right" from **is right**:
 2. **Independent adversarial review** — a *separate* agent that reads ground truth
    and tries to break the work, not just same-context self-critique (which can't
    see its own blind spot). *(Needs a sub-agent-capable host like Claude Code; on
-   the claude.ai app it falls back to fresh-frame self-review — see [Platform
-   support](#install).)*
+   the claude.ai app it falls back to fresh-frame self-review — see
+   [Install](#install).)*
 3. **Verify against ground truth** — re-read the actual file / run the actual
    command, not "does my output match my plan" (internal consistency ≠ correctness).
 
@@ -124,36 +175,38 @@ Plus a **right-size throttle** so it doesn't ceremony-ize trivial tasks, and
 
 ## Install
 
-### Claude Code — one command
+### Claude Code (recommended) — one command
 
-```
+```bash
 git clone https://github.com/alicicek/tale-mode && cd tale-mode && ./install.sh
 ```
 
 `./install.sh` installs for **all** projects (`~/.claude`); `./install.sh --project`
 installs into the **current** repo's `.claude/`. It copies the skill, the
 `plan-reviewer` agent, and the `/plan-phase` + `/kickoff-phase` commands, creating
-the directories as needed (safe to re-run). **Start a new Claude Code session
-afterward** so it loads them.
+directories as needed. Safe to re-run — an existing file that differs is backed up
+to `<file>.bak` first. **Start a new Claude Code session afterward** so it loads.
 
-**Or just tell your agent** (hand it the link):
+**Or just hand your agent the link:**
 
 > Install Tale Mode from https://github.com/alicicek/tale-mode — clone it and run
 > `./install.sh` for user scope, then tell me how to trigger it.
 
-<details><summary>Manual install (what the script does)</summary>
+<details><summary><b>Manual install</b> (what the script does)</summary>
 
-```
+```bash
 mkdir -p ~/.claude/skills/tale-mode ~/.claude/agents ~/.claude/commands
 cp SKILL.md                              ~/.claude/skills/tale-mode/SKILL.md
 cp claude-code/agents/plan-reviewer.md   ~/.claude/agents/plan-reviewer.md
 cp claude-code/commands/*.md             ~/.claude/commands/
 ```
+
 (swap `~/.claude` → `.claude` for a single project)
+
 </details>
 
 **claude.ai app:** put `SKILL.md` in a folder named `tale-mode`, zip the folder,
-upload at `claude.ai/customize/skills`.
+and upload at `claude.ai/customize/skills`.
 
 > **Platform support.** The full skill — including the parallel-delegation step
 > and the *independent* adversarial review — needs a host that can spawn
@@ -162,39 +215,9 @@ upload at `claude.ai/customize/skills`.
 > hostile, fresh-frame self-review. The other six steps apply identically
 > everywhere.
 
-## Use it
+## Tuning — effort & orchestration
 
-**Triggers:** **"tale mode"**, **"tale on"**, **"go deep"** — or it
-self-activates on complex multi-step work.
-
-**Slash commands** (Claude Code — see [Examples](#examples)):
-- `/plan-phase <task>` — plan to the full bar (verify-against-code, receipts,
-  independent review, runnable gates) before any code; large features are
-  **decomposed into independently-shippable phases** you approve.
-- `/kickoff-phase <plan-file> <phase>` — implement one phase of a larger plan in a
-  fresh session. **Runs under plan mode**: re-verifies the plan against the current
-  code, interviews you, and waits for your approval before writing anything.
-
-**The pipeline — one phase per session** (keeps each session's context lean):
-
-```text
-/plan-phase <big feature>        → phased plan on disk (Phase 1..N), approved
-   /clear  → fresh session
-/kickoff-phase plan.md "Phase 1" → plan mode → you approve → build → PR → stop
-   /clear  → fresh session
-/kickoff-phase plan.md "Phase 2" → …
-```
-
-The plan file on disk is the durable hand-off between sessions; `/clear` between
-phases stops a session from re-reading a huge context every turn. For a small,
-single-session task, skip the pipeline and just use `/plan-phase` (or a trigger).
-
-Optional deterministic gates (typecheck/lint after edits): see
-[`claude-code/HOOKS.md`](claude-code/HOOKS.md).
-
-## How to operate it well — effort & orchestration
-
-These are different dials:
+Two independent dials, once it's running:
 
 - **Effort = reasoning depth.** Default **xhigh** for planning, review, and
   execution — deep but responsive. Use **max** only for the single hardest
@@ -227,6 +250,33 @@ This repo was built with its own method: `SKILL.md` was run through the
 `plan-reviewer` agent it ships, and the findings — plus the fixes they produced —
 are in the commit history. (A receipt — the discipline the skill itself demands —
 instead of a "trust me.")
+
+## What's in the box
+
+```text
+tale-mode/
+├── SKILL.md                 # the operating mode (portable — works on any host)
+├── install.sh               # one-command installer (user or --project scope)
+└── claude-code/             # Claude Code-specific assets
+    ├── HOOKS.md             # optional deterministic typecheck/lint gates
+    ├── agents/
+    │   └── plan-reviewer.md  # the independent adversarial reviewer
+    └── commands/
+        ├── plan-phase.md     # /plan-phase  — verified, phased planning
+        └── kickoff-phase.md  # /kickoff-phase — build one phase, under plan mode
+```
+
+`SKILL.md` is the whole methodology and is the only file the claude.ai app needs.
+Everything under `claude-code/` adds the sub-agent and slash-command machinery that
+hosts with delegation can use.
+
+## Contributing
+
+Issues and PRs welcome. This repo is dogfooded — if you're proposing a change to
+the methodology, run it through the `plan-reviewer` agent first and include what it
+found (that's the [receipts](#what-makes-it-different) discipline applied to
+the repo itself). Keep edits to `SKILL.md` host-agnostic; put anything
+Claude Code-specific under `claude-code/`.
 
 ## Credits & license
 
