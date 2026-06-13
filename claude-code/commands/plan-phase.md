@@ -12,17 +12,25 @@ not skip a step:
 2. **Decisions with receipts.** A table `Decision | Source`, where Source is a
    verbatim quote from the user, an answer you asked for, or
    "my judgment — rationale: …". Never inscribe a constraint nobody gave you.
+   If the task came from an open-ended discussion with no written brief, first
+   distil that conversation's conclusions into the receipts table (or a short brief
+   file) — don't plan against un-captured intent; the plan is only as sound as the
+   receipts it cites.
 3. **Ask the real forks.** Use AskUserQuestion for genuine, load-bearing choices
    you can't resolve from the task / code / a sensible default — batched.
 4. **Adversarial review.** Run the `plan-reviewer` agent on your draft; fold every
    confirmed finding into the plan with an ID (C1, C2, …) so it's traceable.
 5. **Invariants.** List what must not break (frozen contracts, do-not-touch,
    security / privacy / data / money) and assert each in the verification section.
-6. **Decompose & sequence.** If the feature is large, split it into
-   independently-shippable phases — each with its own done-criteria and
-   verification gate, sized to run through `/kickoff-phase` in one fresh session.
-   Order them foundation-first (the dependency root, gated green), then
-   independent fan-out where parallelizable.
+6. **Decompose & sequence — size to sessions.** If the task is larger than one
+   sitting, split it into independently-shippable phases — each sized to one
+   session / one PR / one coherent verify-loop, with its own done-criteria, gate,
+   and rollback. A phase you can't finish *and* verify in a single session is too
+   big; split it. Keep each phase thin (intent + gate), **not** step-by-step — the
+   executor re-derives specifics against live code at kickoff. Order them
+   foundation-first (the dependency root, gated green), then independent fan-out
+   where parallelizable. For a multi-phase plan, emit a progress tracker and a
+   `/kickoff-phase <this-file> "Phase N"` cue per phase.
 7. **Runnable gates.** Exact commands with expected output — never "test it" — and
    note what each check can't catch. A clean diff is not evidence; run it.
 8. **Rollback + out-of-scope + known-untestable.** Name them.

@@ -49,6 +49,15 @@ a contract-regen chain — classify by blast radius, not diff size.)
   undo, or runs long across sessions): run the **full loop**, including the §5
   independent adversarial review and §7 durable memory.
 
+**Split into phases when the work won't fit one session.** Independently of the
+tier above: if executing the task end-to-end would touch more than one coherent
+verify-loop, or bloat the working context toward the compaction threshold (~150K
+tokens — not the 1M hard limit; by 1M you've long since lost recall to context-rot
+and are re-reading the whole window every turn, which on a subscription burns your
+usage allowance fastest), plan it as multiple phases and run one per session with a
+`/clear` between. Blast radius sets the review depth; "fits one session" sets the
+phase boundaries.
+
 ## The loop
 
 ### 1. Map the work before acting
