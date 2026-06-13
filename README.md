@@ -6,12 +6,14 @@
 
 **Make Claude work like a careful senior engineer, not an eager intern.**
 
-Tale Mode is a drop-in operating mode — a
-[skill](https://docs.claude.com/en/docs/claude-code/skills) — that enforces the
-disciplines strong models skip when they rush: plan before acting, back every
-decision with a source, **verify claims against the real files (not memory)**, get
-an *independent* review on risky work, and keep durable notes. It right-sizes
-itself, so a typo fix stays a typo fix.
+> **Anthropic pulled the plug on Fable. Tale Mode was made by Fable to get Opus to act like Fable.**
+>
+> Not smarter — *more disciplined.* A drop-in
+> [skill](https://docs.claude.com/en/docs/claude-code/skills) that makes any Claude
+> work like a careful senior engineer: verify the real code (never memory), receipts
+> on every decision, an *independent* adversarial review before it says "done," and
+> durable notes — right-sized, so a typo fix stays a typo fix. The model got pulled;
+> the method didn't.
 
 > **Honest scope.** This does **not** make the model smarter or close any
 > raw-capability gap. It changes *how* it works — trading a little speed for
