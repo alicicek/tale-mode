@@ -58,6 +58,24 @@ usage allowance fastest), plan it as multiple phases and run one per session wit
 `/clear` between. Blast radius sets the review depth; "fits one session" sets the
 phase boundaries.
 
+**Phase the rollout, not the rigor.** Phasing is about *sequencing* work across
+sessions — never licence to ship a stub, a placeholder, or behavior worse than what
+it replaces. Each phase delivers production-grade, behavior-complete work for *its*
+slice; "we'll fix it in a later phase" is how a regression ships behind a green
+diff. If a slice can't be done properly yet, shrink the slice — don't lower the bar.
+
+**Do it now, or defer it in writing — never only in your head.** Default to the
+proper implementation now. A v1 / MVP / stub is justified only when the full
+version genuinely *can't* be built yet — a missing prerequisite, a separate
+high-stakes surface that deserves its own review (e.g. a money path), or it won't
+fit the session — never just because it's faster. And a deferral only counts once
+it's written to durable memory (§7) as a named, owned item: a gap you merely say
+out loud (§8) dies on session reset — the next run starts clean and never sees it.
+Test before deferring: *if this session ended now, would this still get picked up?*
+If no — do it now, or write it into the plan first. (Doing it properly means not
+under-building the scope you have — not inflating it; right-size the scope itself
+via the tiers above.)
+
 ## The loop
 
 ### 1. Map the work before acting
@@ -74,6 +92,12 @@ Every non-trivial decision traces to a source. Tag each one:
 Never silently inscribe a constraint nobody gave you. When you catch yourself
 writing *"obviously", "just", "should be fine", "already done", "untouched"* —
 stop and check whether that's verified or assumed.
+
+Fidelity claims are the sharpest trap of all: *"mirrors X exactly", "ported
+verbatim", "byte-identical", "matches the old behavior"* each assert equivalence to
+another artifact — and equivalence is testable. Prove it (diff the two, run both,
+compare output) or downgrade the claim to what you actually checked. Never inscribe
+"mirrors exactly" as a comment you did not diff.
 
 ### 3. Delegate independent work in parallel *(when it pays off)*
 If parts of the task are independent **and** each is large enough to outweigh the
@@ -92,6 +116,15 @@ Before advancing, check the stage two ways:
   file / run the actual command / open the actual source — do **not** trust your
   own earlier summary or memory of it. Cite what you checked (file:line, command
   output). Correct any stale claim out loud.
+- **Sweep beyond the diff.** A change to config, a build step, a dependency, or a
+  shared interface can break files the diff never touches. Enumerate the consumers
+  of what you changed — other call sites, scripts, generated artifacts, CI/guard
+  scripts — and re-run them. Diff-scoped review is structurally blind here; only
+  running the dependents catches it.
+- **Run the project's own gates.** Inventory the checks the repo already ships
+  (`package.json` scripts, CI workflows, guard/lint scripts) and run every one this
+  change could affect, pasting the exit codes. A gate you *added* but never ran is
+  not done; a gate that *silently always fails* is worse than none.
 - **When full verification is prohibitively expensive** (a 40-min suite, a
   prod-only behavior, a destructive command): verify the cheapest *sufficient
   proxy* and state, in §8, exactly what the proxy does not cover.
@@ -123,15 +156,18 @@ manufacture a default for a load-bearing, ambiguous choice.
 
 ### 7. Persist progress to durable memory
 For work spanning multiple steps or sessions, keep a running log on disk (a plan /
-progress file): what's done, the decisions + their receipts, what's next, and
-anything that drifted. Re-read it when you resume. The conversation is not durable
-memory; the file is.
+progress file): what's done, the decisions + their receipts, what's next, **every
+deferred item (§0) and open gap (§8)**, and anything that drifted. Re-read it when
+you resume — and reconcile the deferral list, confirming nothing silently fell
+through. The conversation is not durable memory; the file is.
 
 ### 8. Surface gaps honestly
 Name what you did NOT do, what you could not verify (and what a cheap proxy didn't
 cover), and what's out of scope. "Known-untestable" and "out-of-scope" sections
 are features, not omissions. Reporting a failure faithfully beats a confident
-wrong "done".
+wrong "done". **Any gap that must actually get fixed graduates to durable memory
+(§7), not just this report — a gap that lives only in the conversation is lost the
+moment the session resets.**
 
 ## Worked example (Substantial tier)
 A filled-in pass, so the artifacts above have a shape to copy. Task:
@@ -167,6 +203,12 @@ limit is generous; flagged for follow-up. *(The real one, not a manufactured nit
 - **Software:** read the relevant code before writing; trace the call sites you'll
   affect; plan the diff; write or run the test/command and *observe* behavior —
   don't infer it from the diff; reuse existing helpers before writing new ones.
+  When you port or replace existing behavior, run a **parity check** against the
+  original — the new version must be equivalent-or-better, and any deliberate
+  divergence is called out with rationale, not hidden. Confirm version-specific
+  behavior against current docs, not training memory — adapter conventions,
+  build-output layout, and breaking changes are top sources of "looked right,
+  didn't run".
 - **Research:** gather sources before synthesizing; every claim cites evidence;
   mark inference vs. fact; verify the load-bearing claims, not just the easy ones.
 - **Data:** understand the data's shape and quality before computing; state the
