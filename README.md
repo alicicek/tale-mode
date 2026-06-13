@@ -13,7 +13,7 @@ on every decision, an *independent* adversarial review before it says "done," an
 durable notes — right-sized, so a typo fix stays a typo fix. The model got pulled;
 the method didn't.
 
-**Contents:** [Quick start](#quick-start) · [Problem](#the-problem-it-targets) · [How it works](#how-it-works) · [Examples](#examples) · [Use it](#use-it) · [What's different](#what-makes-it-different) · [Install](#install) · [Tuning](#tuning--effort--orchestration) · [Does it work?](#does-it-actually-work) · [What's in the box](#whats-in-the-box) · [Contributing](#contributing)
+**Contents:** [Quick start](#quick-start) · [Problem](#the-problem-it-targets) · [How it works](#how-it-works) · [Examples](#examples) · [Use it](#use-it) · [What's different](#what-makes-it-different) · [Install](#install) · [Security & trust](#security--trust) · [Tuning](#tuning--effort--orchestration) · [Does it work?](#does-it-actually-work) · [What's in the box](#whats-in-the-box) · [Contributing](#contributing)
 
 ---
 
@@ -183,6 +183,9 @@ installs into the **current** repo's `.claude/`. It copies the skill, the
 directories as needed. Safe to re-run — an existing file that differs is backed up
 to `<file>.bak` first. **Start a new Claude Code session afterward** so it loads.
 
+New to running a stranger's skill? It's deliberately tiny and readable — see
+[Security & trust](#security--trust) before you run anything.
+
 **Or just hand your agent the link:**
 
 > Install Tale Mode from https://github.com/alicicek/tale-mode — clone it and run
@@ -210,6 +213,44 @@ and upload at `claude.ai/customize/skills`.
 > gracefully: run the strands sequentially and do the review as a deliberately
 > hostile, fresh-frame self-review. The other six steps apply identically
 > everywhere.
+
+## Security & trust
+
+A skill is loaded into your agent's context and, in Claude Code, runs with the
+same privileges you have — so "only install skills you trust" is the right
+instinct (it's [Anthropic's own advice](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview)).
+The honest answer to "is this safe?" isn't *trust me* — it's *read it, it's tiny.*
+The whole project is plain Markdown plus one ~40-line install script; the entire
+attack surface is five files you can skim in a couple of minutes.
+
+**What it does / doesn't do**
+
+- **No telemetry, no analytics, no background network calls.** `SKILL.md`, the
+  slash-command files, and `install.sh` send nothing anywhere. `install.sh` only
+  runs `mkdir`/`cp`/`cmp` to copy files into your `~/.claude` (or `./.claude`).
+- **One capability worth flagging:** the bundled `plan-reviewer` subagent is
+  granted `Bash` + `WebFetch` (see
+  [`claude-code/agents/plan-reviewer.md`](claude-code/agents/plan-reviewer.md)) so
+  it can run your project's checks and verify cited sources. Those run **only when
+  you invoke a review**, under Claude Code's normal permission prompts.
+- It never asks Claude to read secrets, weaken security, or run destructive
+  commands. The whole point is to make Claude *more* careful.
+
+**Verify before you run** — read these five files; that's everything:
+`SKILL.md` · `install.sh` · `claude-code/agents/plan-reviewer.md` ·
+`claude-code/commands/plan-phase.md` · `claude-code/commands/kickoff-phase.md`.
+
+**Pin it** (recommended for shared or work machines) — review a commit, then
+install exactly that version instead of tracking `main`:
+
+```bash
+git clone https://github.com/alicicek/tale-mode && cd tale-mode
+git checkout <commit-sha>   # a commit you've read — copy the SHA from GitHub
+less install.sh             # confirm: it only copies files into ~/.claude
+./install.sh
+```
+
+Found a problem? See [`SECURITY.md`](SECURITY.md).
 
 ## Tuning — effort & orchestration
 
