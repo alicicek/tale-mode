@@ -2,8 +2,8 @@
 name: tale-mode
 description: >-
   Make Claude work rigorously on complex or high-stakes tasks instead of
-  one-shotting them. Triggers: "tale mode", "deep work mode", "do this
-  properly/thoroughly" — or self-activates on hard multi-step work. Enforces
+  one-shotting them. Triggers: "tale mode", "tale on", "go deep" — or
+  self-activates on hard multi-step work. Enforces
   staged planning, decisions-with-receipts, verifying claims against the real
   source (not memory), parallel delegation, an independent adversarial review for
   high-stakes output, and durable progress notes. Right-sizes itself so trivial
@@ -78,6 +78,9 @@ Before advancing, check the stage two ways:
 - **When full verification is prohibitively expensive** (a 40-min suite, a
   prod-only behavior, a destructive command): verify the cheapest *sufficient
   proxy* and state, in §8, exactly what the proxy does not cover.
+- **Keep the main thread lean.** For heavy verification (a browser run, a large
+  command dump), drive it from a sub-agent (§3) that reports pass/fail + the
+  citations — don't park raw logs or snapshots in your working context.
 
 **Internal consistency is not correctness. A clean diff is not evidence it
 works — run it and observe the behavior.**
@@ -87,7 +90,9 @@ works — run it and observe the behavior.**
   consequential** weakness you can find, ranked by impact. A cosmetic nit does not
   discharge this step — producing only trivial weaknesses is itself a signal the
   real review hasn't happened. Fix it, or flag it with a reason it's acceptable to
-  ship. Never present as if flawless.
+  ship. Never present as if flawless. But if, after a genuine pass, the only real
+  weaknesses are minor, say so plainly — don't manufacture severity to satisfy this
+  step.
 - **High-stakes:** self-review has a ceiling — you cannot see the frame you're
   trapped in. Spawn a **separate** sub-agent that reads the ground truth
   independently and tries to break your work (what breaks, what leaks, what races,
@@ -110,6 +115,35 @@ Name what you did NOT do, what you could not verify (and what a cheap proxy didn
 cover), and what's out of scope. "Known-untestable" and "out-of-scope" sections
 are features, not omissions. Reporting a failure faithfully beats a confident
 wrong "done".
+
+## Worked example (Substantial tier)
+A filled-in pass, so the artifacts above have a shape to copy. Task:
+*"Add a 5-req/min rate limit to POST /api/signup."*
+
+**§1 Map** — *done = limit enforced and a test proves the 6th request in a window
+gets 429:*
+1. Find the signup handler + how requests are keyed → *expect:* file + signature.
+2. Wire a limiter before the handler; pick store + window → *expect:* it's in the chain.
+3. Test 5 pass / 6th blocked → *expect:* green test, observed `429`.
+
+**§2 Receipts**
+
+| Decision | Source |
+|---|---|
+| 5 req / 60s | user: "5-req/min" |
+| Key by IP, not user id | my judgment — signup is pre-auth, no user id exists yet |
+| Reuse `kv` client, no new dep | reuse — `src/lib/kv.ts:12` already exports a TTL client |
+
+**§4 Verify (ground truth):** re-read `routes/signup.ts:1-40` — handler is `POST` at
+line 8, no existing limiter (*confirmed, not assumed*). Ran the test: the 6th request
+returned `429` (*observed, not inferred from the diff*).
+
+**§5 Critique:** most consequential weakness — IP keying means a NAT'd office shares
+one bucket (false positives). Acceptable to ship: abuse is the bigger risk and the
+limit is generous; flagged for follow-up. *(The real one, not a manufactured nit.)*
+
+**§8 Gaps:** not load-tested under concurrency; the KV TTL race (two simultaneous
+5th requests) is unverified — low-impact at this limit.
 
 ## Domain patterns
 

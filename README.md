@@ -162,7 +162,7 @@ upload at `claude.ai/customize/skills`.
 
 ## Use it
 
-**Triggers:** **"tale mode"**, **"deep work mode"**, **"do this properly"** — or it
+**Triggers:** **"tale mode"**, **"tale on"**, **"go deep"** — or it
 self-activates on complex multi-step work.
 
 **Slash commands** (Claude Code — see [Examples](#examples)):
