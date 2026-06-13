@@ -95,12 +95,14 @@ diff. (The discipline that catches cross-browser bugs in one pass instead of fiv
 > /plan-phase add rate-limiting to the public API
 
 A verified, receipts-backed, independently-reviewed plan you approve before any
-code is written.
+code is written. A large feature comes back **split into independently-shippable
+phases**, each sized for one `/kickoff-phase` session.
 
 > /kickoff-phase PLAN.md 3
 
-Starts one scoped chunk of a larger plan in a fresh session: interviews you first,
-then builds only that chunk.
+Builds **one** phase of a larger plan in a fresh session. Runs **under plan mode**:
+re-verifies the plan against the current code, interviews you, and waits for your
+approval before writing anything — then builds only that phase and stops.
 
 ## What makes it different
 
@@ -167,9 +169,25 @@ self-activates on complex multi-step work.
 
 **Slash commands** (Claude Code — see [Examples](#examples)):
 - `/plan-phase <task>` — plan to the full bar (verify-against-code, receipts,
-  independent review, runnable gates) before any code.
-- `/kickoff-phase <plan-file> <chunk>` — start one scoped chunk of a larger plan
-  in a fresh session; interviews you first, then builds only that chunk.
+  independent review, runnable gates) before any code; large features are
+  **decomposed into independently-shippable phases** you approve.
+- `/kickoff-phase <plan-file> <phase>` — implement one phase of a larger plan in a
+  fresh session. **Runs under plan mode**: re-verifies the plan against the current
+  code, interviews you, and waits for your approval before writing anything.
+
+**The pipeline — one phase per session** (keeps each session's context lean):
+
+```text
+/plan-phase <big feature>        → phased plan on disk (Phase 1..N), approved
+   /clear  → fresh session
+/kickoff-phase plan.md "Phase 1" → plan mode → you approve → build → PR → stop
+   /clear  → fresh session
+/kickoff-phase plan.md "Phase 2" → …
+```
+
+The plan file on disk is the durable hand-off between sessions; `/clear` between
+phases stops a session from re-reading a huge context every turn. For a small,
+single-session task, skip the pipeline and just use `/plan-phase` (or a trigger).
 
 Optional deterministic gates (typecheck/lint after edits): see
 [`claude-code/HOOKS.md`](claude-code/HOOKS.md).
