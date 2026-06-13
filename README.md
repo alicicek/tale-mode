@@ -4,20 +4,14 @@
 [![Claude Code skill](https://img.shields.io/badge/Claude%20Code-skill-d97757.svg)](https://docs.claude.com/en/docs/claude-code/skills)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#contributing)
 
-**Make Claude work like a careful senior engineer, not an eager intern.**
+**Anthropic pulled the plug on Fable. Tale Mode was made by Fable to get Opus to act like Fable.**
 
-> **Anthropic pulled the plug on Fable. Tale Mode was made by Fable to get Opus to act like Fable.**
->
-> Not smarter — *more disciplined.* A drop-in
-> [skill](https://docs.claude.com/en/docs/claude-code/skills) that makes any Claude
-> work like a careful senior engineer: verify the real code (never memory), receipts
-> on every decision, an *independent* adversarial review before it says "done," and
-> durable notes — right-sized, so a typo fix stays a typo fix. The model got pulled;
-> the method didn't.
-
-> **Honest scope.** This does **not** make the model smarter or close any
-> raw-capability gap. It changes *how* it works — trading a little speed for
-> correctness you can trust.
+Not smarter — *more disciplined.* A drop-in
+[skill](https://docs.claude.com/en/docs/claude-code/skills) that makes any Claude
+work like a careful senior engineer: verify the real code (never memory), receipts
+on every decision, an *independent* adversarial review before it says "done," and
+durable notes — right-sized, so a typo fix stays a typo fix. The model got pulled;
+the method didn't.
 
 **Contents:** [Quick start](#quick-start) · [Problem](#the-problem-it-targets) · [How it works](#how-it-works) · [Examples](#examples) · [Use it](#use-it) · [What's different](#what-makes-it-different) · [Install](#install) · [Tuning](#tuning--effort--orchestration) · [Does it work?](#does-it-actually-work) · [What's in the box](#whats-in-the-box) · [Contributing](#contributing)
 
