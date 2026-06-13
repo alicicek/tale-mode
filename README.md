@@ -59,13 +59,33 @@ Plus a **right-size throttle** so it doesn't ceremony-ize trivial tasks, and
 
 ## Install
 
-**Claude Code** (project scope — swap `.claude/` → `~/.claude/` for all projects):
+### Claude Code — one command
 
 ```
-cp SKILL.md                          .claude/skills/tale-mode/SKILL.md
-cp claude-code/agents/plan-reviewer.md   .claude/agents/plan-reviewer.md
-cp claude-code/commands/*.md             .claude/commands/
+git clone https://github.com/alicicek/tale-mode && cd tale-mode && ./install.sh
 ```
+
+`./install.sh` installs for **all** projects (`~/.claude`); `./install.sh --project`
+installs into the **current** repo's `.claude/`. It copies the skill, the
+`plan-reviewer` agent, and the `/plan-phase` + `/kickoff-phase` commands, creating
+the directories as needed (safe to re-run). Start a new Claude Code session
+afterward so it loads them.
+
+**Or just tell your agent** (hand it the link):
+
+> Install Tale Mode from https://github.com/alicicek/tale-mode — clone it and run
+> `./install.sh` for user scope, then tell me how to trigger it.
+
+<details><summary>Manual install (what the script does)</summary>
+
+```
+mkdir -p ~/.claude/skills/tale-mode ~/.claude/agents ~/.claude/commands
+cp SKILL.md                              ~/.claude/skills/tale-mode/SKILL.md
+cp claude-code/agents/plan-reviewer.md   ~/.claude/agents/plan-reviewer.md
+cp claude-code/commands/*.md             ~/.claude/commands/
+```
+(swap `~/.claude` → `.claude` for a single project)
+</details>
 
 **claude.ai app:** put `SKILL.md` in a folder named `tale-mode`, zip the
 folder, upload at `claude.ai/customize/skills`.
@@ -78,7 +98,7 @@ folder, upload at `claude.ai/customize/skills`.
 
 ## Use it
 
-Triggers: **"tale mode"**, **"be systematic"**, **"deep work mode"**, **"do this properly"** — or it
+Triggers: **"tale mode"**, **"deep work mode"**, **"do this properly"** — or it
 self-activates on complex multi-step work. In Claude Code:
 
 - `/plan-phase <task>` — plan a task to the full bar (verify-against-code,
