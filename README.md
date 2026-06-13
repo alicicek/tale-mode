@@ -278,6 +278,6 @@ found (that's the [receipts](#what-makes-it-different) discipline applied to
 the repo itself). Keep edits to `SKILL.md` host-agnostic; put anything
 Claude Code-specific under `claude-code/`.
 
-## Credits & license
+## License
 
 MIT licensed — see [`LICENSE`](LICENSE).
