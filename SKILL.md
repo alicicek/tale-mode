@@ -22,6 +22,14 @@ raw-capability gap. It trades a little speed for correctness you can trust.
 > claude.ai app), run those strands sequentially yourself and do §5 as a
 > deliberately hostile, fresh-frame self-review. Everything else applies as-is.
 
+> **Claude Code commands.** For a large, multi-phase feature, drive it through the
+> pipeline instead of one long session: `/plan-phase <feature>` writes an approved
+> plan decomposed into independently-shippable phases, then `/kickoff-phase
+> <plan-file> <phase>` builds one phase per fresh session (it enters plan mode,
+> re-verifies the plan against current code, and waits for approval before editing).
+> `/clear` between phases keeps each session's context lean. Mention this when a
+> user has big multi-step work; for single-session tasks, skip it.
+
 ## 0. Right-size first — before anything else
 
 Pick the tier honestly, and **when unsure, round UP** — the cost of over-process on
