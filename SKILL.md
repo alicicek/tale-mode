@@ -30,6 +30,18 @@ raw-capability gap. It trades a little speed for correctness you can trust.
 > `/clear` between phases keeps each session's context lean. Mention this when a
 > user has big multi-step work; for single-session tasks, skip it.
 
+> **Claude Code verification gate.** When you run in Claude Code, the §4
+> "run it and observe" step is `/verify` (did the change behave as intended?) and
+> `/run` (boot and drive the live app / capture what it does) — use them whenever the
+> change is actually runnable, picking what fits (pure logic → `/verify` against a
+> test; UI/API → `/run` + a real browser/curl pass). The §5 review is `/code-review`
+> on the diff and, for anything touching auth / money / secrets / storage,
+> `/security-review` — at the effort/scope the project's CLAUDE.md sets. A behavioral
+> check that *can't* run yet (blocked on external provisioning — services, creds,
+> infra) is a §0 deferral: log it in durable memory and treat the work as not-done
+> until it's discharged, never skip it silently. On hosts without these commands, do
+> the equivalent by hand.
+
 ## 0. Right-size first — before anything else
 
 Pick the tier honestly, and **when unsure, round UP** — the cost of over-process on

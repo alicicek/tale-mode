@@ -36,7 +36,11 @@ not skip a step:
    where parallelizable. For a multi-phase plan, emit a progress tracker and a
    `/kickoff-phase <this-file> "Phase N"` cue per phase.
 7. **Runnable gates.** Exact commands with expected output — never "test it" — and
-   note what each check can't catch. A clean diff is not evidence; run it.
+   note what each check can't catch. A clean diff is not evidence; run it. For each
+   phase, name the behavioral check that proves it works (`/verify`; `/run` for
+   anything user-facing) and — for phases touching auth/data/money/security/storage —
+   the `/code-review` + `/security-review` the executor runs before the PR; flag any
+   check blocked on not-yet-provisioned services as a deferral the kickoff carries.
 8. **Rollback + out-of-scope + known-untestable.** Name them.
 
 State the risk tier up front (touches auth / data / money / security → full
