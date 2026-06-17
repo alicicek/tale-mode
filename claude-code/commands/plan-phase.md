@@ -8,7 +8,7 @@ not skip a step:
 1. **Verify, don't trust.** Launch a read-only/Explore agent to read the relevant
    code and sources; confirm every claim you'll rely on; cite file:line. Correct
    any stale assumption explicitly ("the brief says X; the code shows Y at
-   `<file:line>`").
+   `<file:line>`"). **For any external framework / library / SDK / CLI you'll build on** — especially fast-moving or RC ones — confirm the CURRENT setup against official docs (Context7 / web), not training memory; scaffold commands, adapter conventions, and build-output paths are top causes of "looked right, didn't run".
 2. **Decisions with receipts.** A table `Decision | Source`, where Source is a
    verbatim quote from the user, an answer you asked for, or
    "my judgment — rationale: …". Never inscribe a constraint nobody gave you.
@@ -17,7 +17,11 @@ not skip a step:
    file) — don't plan against un-captured intent; the plan is only as sound as the
    receipts it cites.
 3. **Ask the real forks.** Use AskUserQuestion for genuine, load-bearing choices
-   you can't resolve from the task / code / a sensible default — batched.
+   you can't resolve from the task / code / a sensible default — batched. Label
+   each option by authority: **"In plan"**, **"Engineering alternative"**, or
+   **"Out of scope"**. Do not mark an option "Recommended" if it contradicts the
+   active plan. If you want to recommend changing the plan, explicitly say
+   "recommend changing the plan" and cite the exact plan line being overridden.
 4. **Adversarial review.** Run the `plan-reviewer` agent on your draft; fold every
    confirmed finding into the plan with an ID (C1, C2, …) so it's traceable.
 5. **Invariants.** List what must not break (frozen contracts, do-not-touch,

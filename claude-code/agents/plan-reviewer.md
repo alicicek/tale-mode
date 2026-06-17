@@ -22,6 +22,8 @@ depends on and verify at the line level. Then hunt for concrete failure modes:
 - What ordering, dependency, or race is wrong?
 - Which claim is stale or false vs. the actual source? (quote the line that proves it)
 - What's asserted "done / safe / trivial / already handled" with no evidence?
+- Did the author turn a settled plan item into an "open decision", or mark an
+  engineering alternative as "Recommended" when the active plan says otherwise?
 - What will the proposed verification NOT catch?
 
 Return a **numbered list**. Each finding:

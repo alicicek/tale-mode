@@ -121,10 +121,14 @@ Before advancing, check the stage two ways:
   of what you changed — other call sites, scripts, generated artifacts, CI/guard
   scripts — and re-run them. Diff-scoped review is structurally blind here; only
   running the dependents catches it.
-- **Run the project's own gates.** Inventory the checks the repo already ships
-  (`package.json` scripts, CI workflows, guard/lint scripts) and run every one this
-  change could affect, pasting the exit codes. A gate you *added* but never ran is
-  not done; a gate that *silently always fails* is worse than none.
+- **Run the project's own gates — inventory them mechanically, not from memory.**
+  `grep` the `scripts` block of every `package.json`, list `tools/` + `scripts/`,
+  read the CI workflow — *then* run every gate this change could touch and paste the
+  exit codes. Re-running the subset you happen to remember is exactly how a
+  silently-broken gate survives: one an uninstalled dep makes un-runnable, or a
+  moved build-output path makes always-fail, looks "fine" only because you never
+  invoked it. A gate you *added* but never ran is not done; a gate that *silently
+  always fails* is worse than none.
 - **When full verification is prohibitively expensive** (a 40-min suite, a
   prod-only behavior, a destructive command): verify the cheapest *sufficient
   proxy* and state, in §8, exactly what the proxy does not cover.
@@ -204,8 +208,14 @@ limit is generous; flagged for follow-up. *(The real one, not a manufactured nit
   affect; plan the diff; write or run the test/command and *observe* behavior —
   don't infer it from the diff; reuse existing helpers before writing new ones.
   When you port or replace existing behavior, run a **parity check** against the
-  original — the new version must be equivalent-or-better, and any deliberate
-  divergence is called out with rationale, not hidden. Confirm version-specific
+  original — and check the **full observable contract** (status + *every* response
+  header + body), captured by RUNNING both and diffing, not by eyeballing the two
+  handlers' source. Middleware, wrappers, and framework layers inject behavior the
+  handler source never shows (a privacy header stamped upstream, a default 404/500,
+  an auto-served HEAD) — a handler-to-handler read is structurally blind to them.
+  Anchor on the TRUE original, never a prior refactor step that may itself have
+  drifted. The new version must be equivalent-or-better; any deliberate divergence
+  is called out with rationale, not hidden. Confirm version-specific
   behavior against current docs, not training memory — adapter conventions,
   build-output layout, and breaking changes are top sources of "looked right,
   didn't run".

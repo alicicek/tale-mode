@@ -8,14 +8,19 @@ the path in **$ARGUMENTS** (and any roadmap/README it points to) in full.
 Implement only the named chunk.
 
 **Before writing any code, interview me.** Re-verify the plan's claims for this
-chunk against the actual code (the code is ground truth; the plan is a snapshot).
+chunk against the actual code (the code is ground truth; the plan is a snapshot) — and confirm any external framework/SDK/CLI setup against current docs (Context7/web), not memory.
 Then use **AskUserQuestion** to surface — in ONE batched round — every genuine
 question, assumption, ambiguity, gap, or decision-with-trade-offs: anything the
 plan is vague or silent on, anywhere the code has drifted, any assumption you'd
 otherwise make silently, anything that could change behavior, and any step that
 needs me (credentials, dashboards, go/no-go). Don't invent constraints — name the
-gaps. Only proceed on sensible defaults for genuinely trivial things; batch the
-questions.
+gaps. Only ask about genuine forks; do not re-decide items the plan already
+settled. For every multiple-choice option, label its authority as **"In plan"**,
+**"Engineering alternative"**, or **"Out of scope"**. Do not mark an option
+"Recommended" if it contradicts the active plan. If you want to recommend
+changing the plan, explicitly say "recommend changing the plan" and cite the
+exact plan line being overridden. Only proceed on sensible defaults for
+genuinely trivial things; batch the questions.
 
 Once I answer: present the concrete approach for this chunk and **get my approval
 to exit plan mode** (ExitPlanMode). Only then implement on a dedicated branch,
