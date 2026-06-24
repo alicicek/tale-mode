@@ -121,6 +121,22 @@ needs. A fan-out of trivial lookups costs more than it saves.
   authoring one coherent document in pieces — that fractures quality. Keep
   coherent thought in one place.
 
+**This fan-out IS your workflow.** The Explore agents that map the code (§1), the
+adversarial `plan-reviewer`, the `/code-review` finder fan-out, and the §5 fresh-eyes
+reviewer are a hand-built version of what Claude Code's dynamic workflows / ultracode
+mode automate — independent agents cross-checking each other. The breadth and the
+caught bugs come from *this orchestration*, not from a higher per-agent effort dial:
+once a verified plan and this fan-out are in place, the effort setting is mostly
+mechanical (cranking it buys cost, not quality). Spend the budget on the orchestration
+and an independent review — not the dial.
+
+**When to reach for ultracode / a Workflow:** only a genuine *breadth* task — a codebase
+audit, a large migration or sweep, multi-angle research — where the win is coverage, not
+depth, and the fan-out can't be done by hand. On a coherent single build it's
+double-orchestration (this fan-out already covers it). The model can't set ultracode
+itself, so when you spot a real breadth task, **tell the user to switch** (`/effort` →
+ultracode) rather than grinding it single-threaded.
+
 ### 4. Verify each stage — against ground truth
 Before advancing, check the stage two ways:
 - **Internal:** does the output actually match what the stage was meant to produce?
@@ -151,6 +167,29 @@ Before advancing, check the stage two ways:
 **Internal consistency is not correctness. A clean diff is not evidence it
 works — run it and observe the behavior.**
 
+**Diagnosis — when a check fails or something's broken.** Reactive guessing is the
+costliest failure mode here. Work foundation-first:
+- **Verify the foundation before the symptoms.** Before asking *why* it's broken,
+  confirm the thing *exists* and the environment is *capable* of it at all — one
+  existence/capability check often collapses the whole search. (Changing the config,
+  then the URL, then the network path is wasted if the thing you're operating on never
+  existed.)
+- **Two-strike rule.** If two fixes in a row don't work, STOP — that's the alarm that
+  you're debugging downstream of a false assumption. Re-verify the foundational fact
+  before a third attempt; treat each hypothesis as a claim to verify, not a fact.
+- **Respect documented constraints.** When a plan/doc flags something deferred /
+  blocked / environment-specific, confirm it's even possible *here* before forcing it.
+- **Drive it yourself.** Run the diagnostics and fixes with the tooling you have; hand
+  the user a command only when it genuinely needs them (a secret you don't hold, a
+  foreground process's live output, an interactive login, an outward-facing action) —
+  each "you run it, paste it" round-trip is ~10× slower.
+- **Stuck? Get a fresh frame** — hand the full state to a clean-context agent (or a
+  different model) framed as a skeptic; it won't share your anchor (the §5 lever,
+  applied to diagnosis).
+- **Persist, and surface `/goal`.** Keep looping (check → hypothesize → test → fix) to
+  a verifiable success before declaring done. You **cannot** start `/goal` yourself —
+  it's a user command — so when a debug is worth an enforced loop, say so.
+
 ### 5. Critique before delivering — escalate for high-stakes
 - **Always:** read your output as a skeptical reviewer and name the **most
   consequential** weakness you can find, ranked by impact. A cosmetic nit does not
@@ -159,11 +198,56 @@ works — run it and observe the behavior.**
   ship. Never present as if flawless. But if, after a genuine pass, the only real
   weaknesses are minor, say so plainly — don't manufacture severity to satisfy this
   step.
-- **High-stakes:** self-review has a ceiling — you cannot see the frame you're
-  trapped in. Spawn a **separate** sub-agent that reads the ground truth
-  independently and tries to break your work (what breaks, what leaks, what races,
-  what's stale, what the verification won't catch). Fold its findings back in,
-  numbered, so they're traceable. (Use the `plan-reviewer` agent if installed.)
+- **High-stakes — review with FRESH EYES, not harder eyes.** Self-review has a hard
+  ceiling: a model fixes an error instantly when it's framed as *someone else's*
+  code, yet misses the *same* errors in its own output — a self-correction
+  *activation* failure, not a knowledge gap. More effort can't close it (you can't see your own frame), and **re-reading in the
+  same context doesn't either — only a fresh context does.** So spawn a **separate
+  sub-agent with a clean context**, hand it ONLY the diff + the spec + the checklist
+  below, and frame it hostile: *"you're a jaded senior reviewing a rushed junior's PR
+  — assume it's wrong until proven right; hunt what breaks out-of-session."* The fresh, adversarial frame is the unlock — a
+  clean-context pass beats re-reading in the same context. **Strongest of all is a
+  *different model*** (different training → different blind spots; e.g. Greptile / GLM
+  on the PR catches what more of your own model can't — it's what catches the class of
+  bug your in-session reviews structurally share). A fresh-context same-model pass (a
+  sub-agent, or `/clear` on a host without them) is the always-available floor. (Use
+  the `plan-reviewer` agent if installed.)
+- **Run the blind-spot checklist mechanically** — these are "correct in-session,
+  wrong out-of-session" misses that are invisible to reasoning, so check them as a
+  list, never by thinking harder:
+  1. **Sibling parity** — diff every near-identical function pair for asymmetry in
+     try/catch, timeout, disabled/in-flight state, or cleanup (one twin handled it,
+     the other didn't — the handled twin makes the gap read as "done").
+  2. **Temporal coupling** — every client-cached credential/URL records its issuer
+     TTL and refreshes before expiry; every loader/SSR fetch has an `AbortController`
+     (+ `clearTimeout`). Green in a 5-min test ≠ alive at 1 hour.
+  3. **Cleanup completeness** — every timer / listener / subscription / fetch has a
+     matching teardown; enumerate ALL refs, not just the obvious one.
+  4. **Credential hardening** — credential-bearing cookies set Secure + SameSite
+     (+ HttpOnly / `__Host-` where the JS doesn't need to read them).
+  5. **Backend-contract reconciliation** — the client handles every documented return
+     value, incl. partial-success / zero-count, before committing optimistic UI.
+  6. **Edge-state render** — guard primary==fallback (i18n); walk each locale's
+     offline / error / empty states, not just the happy English path.
+  7. **Prop/param liveness** — every declared prop/param/field is actually read;
+     delete or wire the orphans.
+  8. **Batch the bounded-N loop** — per-row queries inside a loop → a single `IN (...)`.
+  9. **Render purity** — no DOM reads / impure calls (`matchMedia`, `window`,
+     `Date.now`, `Math.random`) in a render body (SSR/hydration safety).
+  10. **No RegExp from external input** — parse literally (split/indexOf); flag any
+      guard whose safety leans on a non-local invariant staying true.
+  11. **Error-feedback** — every awaited mutation has a `catch` that shows the USER a
+      *distinct* failure message (not swallowed, not the prompt/instruction string).
+- **Loop until a fresh pass is clean — gate on the REVIEW, not the tests.** A fix can
+  introduce a new defect, and green tests are not a review of the fix delta. So:
+  fresh-eyes review + checklist → fix every P0/P1 → **re-review the post-fix delta in
+  a new fresh frame** → repeat until a fresh pass surfaces no P0/P1. Cap it: gains
+  saturate after 1–2 rounds and an unanchored loop can *degrade* good work — stop on
+  a clean fresh pass or a hard round-cap, never loop forever. Fold every finding back in, numbered, so it's traceable. **Hold this loop yourself** —
+  keep re-reviewing until a fresh pass is clean before declaring done. You can't start
+  `/goal` (it's a user command); when a gate is worth an enforced backstop, surface it —
+  the *user* wraps the session in `/goal <zero-P0/P1 condition>` and a separate evaluator
+  re-runs you until it holds (the worker can't grade its own homework).
 
 ### 6. Ask, don't guess, on genuine forks
 When a decision is genuinely the user's to make and you can't resolve it from the
@@ -184,6 +268,50 @@ are features, not omissions. Reporting a failure faithfully beats a confident
 wrong "done". **Any gap that must actually get fixed graduates to durable memory
 (§7), not just this report — a gap that lives only in the conversation is lost the
 moment the session resets.**
+
+## Autonomous goal loop — "keep going until it's actually done"
+The disciplines above are *how* to work; this lets you **keep working without the user
+re-prompting every step.** Claude Code's `/goal` and `/loop` are user-only — you can't type
+them. This is the loop you *can* start yourself: **arm a goal-file that a Stop hook enforces.**
+
+**Setup (once):** register `hooks/stop-goal-loop.sh` as a `Stop` hook and raise the block cap
+— copy `settings.example.jsonc` into your Claude Code settings. Proven: `bash
+hooks/test-stop-goal-loop.sh` (31 checks across 12 cases — fail/pass/pause/edge).
+
+**Arm a goal** — write `<project>/.claude/active-goal.json` when you start a hard,
+*observably-verifiable* task:
+```json
+{ "goal": "the auth E2E prints PASSED",
+  "check": "npm test -- auth 2>&1 | grep -q PASSED",
+  "rounds": 0, "max_rounds": 25, "needs_user": null }
+```
+- `check` is a **deterministic** shell command — exit 0 means done. It's the gate (a real
+  command, stronger than a model reading the chat). Pick one that **can't pass on a band-aid**
+  (a real test/E2E, never `echo PASSED`).
+- From then on, each time you'd end the turn the hook runs `check`. Fails → you get another
+  turn, with the foundation-first + two-strike disciplines injected as the reason. Passes →
+  the file clears and the turn ends. You literally cannot stop until it's true.
+
+**Pause for the user** (a secret you can't hold, a dashboard only they see, a login, an
+outward-facing action): set `needs_user` to a one-line ask in the goal-file, then ask. The hook
+lets the turn end so they can answer; clear `needs_user` (→ `null`) next turn to resume.
+
+**Stop / give up:** ends when `check` passes, at `max_rounds`, or — if the goal proves genuinely
+unreachable — when you **delete the goal-file and explain why.** Never weaken the `check` to
+force a pass; that band-aid is the exact thing this system exists to prevent.
+
+**Arm it for** observable goals (a debug — "the repro passes"; a feature — "the test is green";
+a phase). Not pure-judgment goals (no deterministic check → nothing to gate on).
+
+**Layer 2 (optional, the adversarial governor):** a `type:"agent"` Stop hook — a FRESH-CONTEXT,
+**read-only** reviewer (Read/Grep/Glob) that, once you're stuck (`rounds` ≥ 2), reads the goal/plan/code
+with a skeptic's frame and names the unverified *foundation*, a violated *documented constraint*, or a
+*band-aid* — the failures Layer 1 can't see. It breaks the anchor (verified to fire in `-p`). Config +
+caveats (experimental; read-only) in `settings.example.jsonc`. Enable deliberately.
+
+**Live-test the runtime** (the script proves the hook's logic; only a live session proves Claude
+Code re-runs the turn on a block): arm `{"goal":"marker","check":"test -f /tmp/tale-done","rounds":0,"max_rounds":5}`,
+end your turn and watch it iterate; `touch /tmp/tale-done`, confirm the next turn-end clears + stops.
 
 ## Worked example (Substantial tier)
 A filled-in pass, so the artifacts above have a shape to copy. Task:

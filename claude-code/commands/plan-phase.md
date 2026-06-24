@@ -22,8 +22,14 @@ not skip a step:
    **"Out of scope"**. Do not mark an option "Recommended" if it contradicts the
    active plan. If you want to recommend changing the plan, explicitly say
    "recommend changing the plan" and cite the exact plan line being overridden.
-4. **Adversarial review.** Run the `plan-reviewer` agent on your draft; fold every
-   confirmed finding into the plan with an ID (C1, C2, …) so it's traceable.
+4. **Adversarial review — fresh eyes, looped.** Run the `plan-reviewer` agent on your
+   draft as a *hostile, fresh-context* reader (it can't see the frame you wrote in):
+   "try to break this plan — what's stale vs the code, what's a design hole, what's
+   the worst-case input, what will the verification miss?" Fold every confirmed
+   finding in with an ID (C1, C2, …), then **re-run it on the revised plan** — a fix
+   can open a new hole — until a fresh pass surfaces nothing material (cap the rounds;
+   gains saturate fast). This is where design holes get caught *before* they cascade
+   into every later phase.
 5. **Invariants.** List what must not break (frozen contracts, do-not-touch,
    security / privacy / data / money) and assert each in the verification section.
 6. **Decompose & sequence — size to sessions.** If the task is larger than one

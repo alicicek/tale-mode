@@ -1,0 +1,51 @@
+// tale-mode — autonomous goal loop: settings to copy into your Claude Code settings.
+//
+// WHERE: merge the "hooks" block into ~/.claude/settings.json (works in every project)
+// or <project>/.claude/settings.json (that project only). Use an ABSOLUTE path for the
+// command (env-var/`~` expansion in hook commands is not guaranteed).
+//
+// SAFETY MODEL: the loop is bounded by `max_rounds` in the goal-file AND by the hook
+// failing OPEN if it can't advance the round counter (read-only/locked dir) — both
+// self-contained, no platform dependency. There is ALSO a platform backstop:
+// CLAUDE_CODE_STOP_HOOK_BLOCK_CAP (documented in the hooks GUIDE, default 8 consecutive
+// blocks before Claude Code force-ends the turn). Raise it so `max_rounds` governs — but
+// the loop is safe even if you don't, because max_rounds + fail-open are self-contained:
+//     export CLAUDE_CODE_STOP_HOOK_BLOCK_CAP=30
+{
+  "hooks": {
+    "Stop": [
+      {
+        // LAYER 1 — the deterministic core (proven, safe-by-default). Does nothing
+        // unless the agent has armed .claude/active-goal.json; then it keeps the turn
+        // going until that goal's `check` command exits 0. timeout MUST exceed the
+        // check's runtime (an E2E that takes 2 min needs timeout >= ~150s).
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /Users/REPLACE_ME/.claude/skills/tale-mode/hooks/stop-goal-loop.sh",
+            "timeout": 600
+          }
+
+          // ── LAYER 2 (OPTIONAL) — the adversarial governor ─────────────────────────
+          // A `type:"agent"` Stop hook = a FRESH-CONTEXT reviewer that breaks the anchor.
+          // It acts once the agent is STUCK (rounds >= 2): with a skeptic's frame it READS
+          // the goal/plan/code and names the unverified FOUNDATION, a violated DOCUMENTED
+          // CONSTRAINT, or a BAND-AID — failures Layer 1 can't see. Blocks via
+          // {"decision":"block","reason"}; the reason reaches the main agent.
+          //
+          // VERIFIED (this session) it DOES fire in headless `-p`. CONSTRAINT: agent hooks
+          // are READ-ONLY — Read / Grep / Glob only, NO Bash or Write — so the prompt reasons
+          // from what it can READ (it cannot run shell or `git diff`). Experimental; fires
+          // every Stop (a fast-model call per turn; self-exits when no goal is armed). Enable
+          // deliberately. Add as a 2nd entry:
+          // ,{
+          //   "type": "agent",
+          //   "timeout": 120,
+          //   "statusMessage": "tale-mode: adversarial foundation check…",
+          //   "prompt": "You are a FRESH-CONTEXT adversarial reviewer for an autonomous goal loop — you do NOT share the main agent's frame. You have READ-ONLY tools (Read, Grep, Glob); you CANNOT run Bash or write files. Hook input: $ARGUMENTS\n1. Read .claude/active-goal.json under the project root (use `cwd` from the input). If absent, output nothing and STOP — no active goal, never interfere.\n2. Read its `rounds`. If rounds < 2, output nothing and STOP — Layer 1 handles early rounds; you intervene only once the agent is repeating (two-strike).\n3. The agent has tried >=2 times and is likely ANCHORED. As a skeptic, find the ONE concrete thing it's missing, using ONLY reads: Grep any plan/spec *.md for a DOCUMENTED CONSTRAINT it is violating (deferred / blocked / env-only / deploy-only / unsupported); Read the relevant code to check whether the FOUNDATION it assumes actually exists / is wired (does the thing it keeps patching even receive the input it expects?); Glob to confirm expected files/artifacts are present; Read the files it just changed to spot a BAND-AID that weakens a test/check instead of fixing the root.\n4. If you find a specific, concrete problem, return {\"decision\":\"block\",\"reason\":\"<one concrete instruction — e.g. 'the plan says Y is deploy-only — stop forcing it locally; set needs_user or clear the goal and tell the user' / 'X is never produced upstream (Grep shows it dropped in <file>) — fix the source, not the symptom' / 'your last edit weakens the test rather than fixing the cause'>\"}.\n5. If nothing concrete, output nothing (allow). Be specific or stay silent — never block on vague doubt."
+          // }
+        ]
+      }
+    ]
+  }
+}

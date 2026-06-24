@@ -13,7 +13,7 @@ on every decision, an *independent* adversarial review before it says "done," an
 durable notes — right-sized, so a typo fix stays a typo fix. The model got pulled;
 the method didn't.
 
-**Contents:** [Quick start](#quick-start) · [Problem](#the-problem-it-targets) · [How it works](#how-it-works) · [Examples](#examples) · [Use it](#use-it) · [What's different](#what-makes-it-different) · [Install](#install) · [Security & trust](#security--trust) · [Tuning](#tuning--effort--orchestration) · [Does it work?](#does-it-actually-work) · [What's in the box](#whats-in-the-box) · [Contributing](#contributing)
+**Contents:** [Quick start](#quick-start) · [Problem](#the-problem-it-targets) · [How it works](#how-it-works) · [Examples](#examples) · [Use it](#use-it) · [Autonomous loop](#autonomous-loop) · [What's different](#what-makes-it-different) · [Install](#install) · [Security & trust](#security--trust) · [Tuning](#tuning--effort--orchestration) · [Does it work?](#does-it-actually-work) · [What's in the box](#whats-in-the-box) · [Contributing](#contributing)
 
 ---
 
@@ -151,6 +151,42 @@ just use `/plan-phase` (or a trigger).
 "green before you continue" is enforced by the harness, not the model's memory):
 see [`claude-code/HOOKS.md`](claude-code/HOOKS.md).
 
+## Autonomous loop
+
+Claude Code's `/goal` and `/loop` are user-only — *you* type them. Tale Mode adds a
+loop the **agent starts itself**: it writes a goal-file (a success condition + a
+*deterministic* `check` command), and a `Stop` hook refuses to let the turn end until
+that check passes — so it grinds a real task to green without you re-prompting each
+step. Opt-in — register the hooks from
+[`claude-code/settings.example.jsonc`](claude-code/settings.example.jsonc).
+
+```jsonc
+// .claude/active-goal.json — the agent writes this at the start of a hard, verifiable task
+{ "goal": "the auth E2E prints PASSED",
+  "check": "npm test -- auth | grep -q PASSED",
+  "rounds": 0, "max_rounds": 25, "needs_user": null }
+```
+
+- **Layer 1 — the loop** ([`hooks/stop-goal-loop.sh`](claude-code/hooks/stop-goal-loop.sh)):
+  check fails → the turn is blocked with the *foundation-first / two-strike* disciplines
+  injected; check passes → the goal clears. It can't run forever (`max_rounds` + a
+  fail-open if it can't persist state), and it **pauses for you** (`needs_user`) when it
+  hits something only you can do — a secret, a deploy, a go/no-go — instead of grinding
+  the impossible. 31 tests cover the fail/pass/pause/edge paths.
+- **Layer 2 — the governor** (optional, experimental): a **read-only** `type:"agent"`
+  Stop hook that, once the agent is *stuck* (≥ 2 rounds), reads the plan/code with a fresh
+  adversarial frame and names the unverified foundation, a violated documented constraint,
+  or a band-aid — the failures the deterministic gate can't see.
+
+**Honest scope.** This buys *autonomy*, not IQ. Verified live (`claude -p`): the
+block→re-turn loop, multi-round iteration, `max_rounds` give-up, the agent self-arming a
+goal, and the `needs_user` pause all work. But capable models already self-regulate —
+they foundation-check and bail correctly — so the loop is mostly a **safety net** for the
+rare real stall, not a daily multiplier. It's a seatbelt: proven to function, worth
+wearing, most valuable on the bad day. Design rationale + the honest build log (including
+the bugs an adversarial pass caught in this very hook):
+[`docs/autonomous-loop-design.md`](docs/autonomous-loop-design.md).
+
 ## What makes it different
 
 Beyond the general bones (stage map → delegate → verify → self-critique, domain
@@ -220,25 +256,32 @@ A skill is loaded into your agent's context and, in Claude Code, runs with the
 same privileges you have — so "only install skills you trust" is the right
 instinct (it's [Anthropic's own advice](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview)).
 The honest answer to "is this safe?" isn't *trust me* — it's *read it, it's tiny.*
-The whole project is plain Markdown plus one ~40-line install script; the entire
-attack surface is five files you can skim in a couple of minutes.
+The whole project is plain Markdown plus a short install script and one small Stop-hook
+shell script; the entire attack surface is a handful of files you can skim in a few minutes.
 
 **What it does / doesn't do**
 
 - **No telemetry, no analytics, no background network calls.** `SKILL.md`, the
   slash-command files, and `install.sh` send nothing anywhere. `install.sh` only
   runs `mkdir`/`cp`/`cmp` to copy files into your `~/.claude` (or `./.claude`).
-- **One capability worth flagging:** the bundled `plan-reviewer` subagent is
+- **Two capabilities worth flagging:** (1) the bundled `plan-reviewer` subagent is
   granted `Bash` + `WebFetch` (see
-  [`claude-code/agents/plan-reviewer.md`](claude-code/agents/plan-reviewer.md)) so
-  it can run your project's checks and verify cited sources. Those run **only when
-  you invoke a review**, under Claude Code's normal permission prompts.
+  [`claude-code/agents/plan-reviewer.md`](claude-code/agents/plan-reviewer.md)) so it can
+  run your project's checks and verify cited sources — **only when you invoke a review**,
+  under Claude Code's normal permission prompts. (2) the **opt-in** autonomous-loop hook
+  ([`claude-code/hooks/stop-goal-loop.sh`](claude-code/hooks/stop-goal-loop.sh)) is a Stop
+  hook: once *you've registered it* and the agent has armed a goal-file, it runs that
+  goal-file's `check` command when the turn would otherwise end (unless the goal is paused
+  for you or has hit its round cap). It does nothing unless you register it **and** a goal-file
+  exists; the `check` is a command the agent wrote in your repo — read the script
+  (~110 lines) before enabling.
 - It never asks Claude to read secrets, weaken security, or run destructive
   commands. The whole point is to make Claude *more* careful.
 
-**Verify before you run** — read these five files; that's everything:
+**Verify before you run** — read these files; that's everything:
 `SKILL.md` · `install.sh` · `claude-code/agents/plan-reviewer.md` ·
-`claude-code/commands/plan-phase.md` · `claude-code/commands/kickoff-phase.md`.
+`claude-code/commands/plan-phase.md` · `claude-code/commands/kickoff-phase.md`. And before
+you enable the optional loop: `claude-code/hooks/stop-goal-loop.sh` + `settings.example.jsonc`.
 
 **Pin it** (recommended for shared or work machines) — review a commit, then
 install exactly that version instead of tracking `main`:
@@ -292,10 +335,17 @@ instead of a "trust me.")
 
 ```text
 tale-mode/
+├── README.md, LICENSE, SECURITY.md   # readme · MIT license · disclosure policy
 ├── SKILL.md                 # the operating mode (portable — works on any host)
 ├── install.sh               # one-command installer (user or --project scope)
+├── docs/
+│   └── autonomous-loop-design.md   # design rationale + honest build log
 └── claude-code/             # Claude Code-specific assets
     ├── HOOKS.md             # optional deterministic typecheck/lint gates
+    ├── settings.example.jsonc      # register the autonomous-loop hooks (opt-in)
+    ├── hooks/
+    │   ├── stop-goal-loop.sh        # the self-armed goal loop (Layer 1)
+    │   └── test-stop-goal-loop.sh   # 31 tests for its fail/pass/edge paths
     ├── agents/
     │   └── plan-reviewer.md  # the independent adversarial reviewer
     └── commands/
