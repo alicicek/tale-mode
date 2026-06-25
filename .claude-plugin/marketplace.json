@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace-manifest.json",
+  "name": "tale-mode",
+  "owner": {
+    "name": "Ali Cicek",
+    "url": "https://github.com/alicicek"
+  },
+  "description": "Tale Mode — a discipline plugin for complex/high-stakes work, plus a self-armed autonomous goal loop.",
+  "metadata": {
+    "pluginRoot": "./plugins"
+  },
+  "plugins": [
+    {
+      "name": "tale-mode",
+      "source": "./plugins/tale-mode",
+      "description": "Discipline mode (staged planning, receipts, verify-against-source, adversarial review) + plan/kickoff commands + a plan-reviewer agent + a Stop-hook autonomous goal loop (L1 deterministic gate + L2 read-only Sonnet governor).",
+      "category": "productivity",
+      "keywords": ["workflow", "planning", "stop-hook", "autonomous-loop", "review"]
+    }
+  ]
+}

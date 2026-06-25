@@ -5,7 +5,7 @@
 # behaviour — that Claude Code actually re-runs the turn on a block — can only be
 # verified in a live session; see the SKILL.md live-test.)
 set -uo pipefail
-HOOK="$(cd "$(dirname "$0")" && pwd)/stop-goal-loop.sh"
+HOOK="$(cd "$(dirname "$0")/../plugins/tale-mode/hooks" && pwd)/stop-goal-loop.sh"
 PASS=0; FAIL=0; WORK=""
 
 newwork() { WORK=$(mktemp -d); mkdir -p "$WORK/.claude"; }

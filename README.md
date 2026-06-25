@@ -1,36 +1,36 @@
 # Tale Mode
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Claude Code skill](https://img.shields.io/badge/Claude%20Code-skill-d97757.svg)](https://docs.claude.com/en/docs/claude-code/skills)
+[![Claude Code plugin](https://img.shields.io/badge/Claude%20Code-plugin-d97757.svg)](https://docs.claude.com/en/docs/claude-code/plugins)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#contributing)
 
 **Anthropic pulled the plug on Fable. Tale Mode was made by Fable to get Opus to act like Fable.**
 
-Not smarter — *more disciplined.* A drop-in
-[skill](https://docs.claude.com/en/docs/claude-code/skills) that makes any Claude
-work like a careful senior engineer: verify the real code (never memory), receipts
-on every decision, an *independent* adversarial review before it says "done," and
-durable notes — right-sized, so a typo fix stays a typo fix. The model got pulled;
-the method didn't.
+Not smarter — *more disciplined.* A drop-in Claude Code **plugin** that makes any Claude
+work like a careful senior engineer: verify the real code (never memory), receipts on
+every decision, an *independent* adversarial review before it says "done," durable notes —
+and a **self-armed autonomous loop** that keeps going until a real check passes. Right-sized,
+so a typo fix stays a typo fix. The model got pulled; the method didn't.
 
-**Contents:** [Quick start](#quick-start) · [Problem](#the-problem-it-targets) · [How it works](#how-it-works) · [Examples](#examples) · [Use it](#use-it) · [Autonomous loop](#autonomous-loop) · [What's different](#what-makes-it-different) · [Install](#install) · [Security & trust](#security--trust) · [Tuning](#tuning--effort--orchestration) · [Does it work?](#does-it-actually-work) · [What's in the box](#whats-in-the-box) · [Contributing](#contributing)
+**Contents:** [Quick start](#quick-start) · [Problem](#the-problem-it-targets) · [How it works](#how-it-works) · [Examples](#examples) · [Use it](#use-it) · [Autonomous loop](#autonomous-loop) · [What's different](#what-makes-it-different) · [Install](#install) · [Security & trust](#security--trust) · [Tuning](#tuning--effort--orchestration) · [Does it work?](#does-it-actually-work) · [What's in the box](#whats-in-the-box) · [Managing / removing](#managing--removing) · [Contributing](#contributing)
 
 ---
 
 ## Quick start
 
-```bash
-git clone https://github.com/alicicek/tale-mode && cd tale-mode && ./install.sh
+```text
+/plugin marketplace add alicicek/tale-mode
+/plugin install tale-mode@tale-mode
 ```
 
-Start a **new** Claude Code session (so it loads), then just ask:
+Restart Claude Code (so it loads), then just ask:
 
 > **tale mode** — refactor the auth middleware and prove it still blocks expired tokens
 
-That's it. It picks how much process the task deserves, plans, verifies against the
-real code, and tells you what it couldn't check. For bigger work, reach for the
-[`/plan-phase` → `/kickoff-phase` pipeline](#use-it). No Claude Code? See
-[other hosts](#install).
+That's it. It picks how much process the task deserves, plans, verifies against the real
+code, and tells you what it couldn't check. For bigger work, reach for the
+[`/tale-mode:plan-phase` → `/tale-mode:kickoff-phase` pipeline](#use-it). Requires
+Claude Code **≥ v2.1.154**.
 
 ## The problem it targets
 
@@ -118,15 +118,22 @@ diff. (The discipline that catches cross-browser bugs in one pass instead of fiv
 
 ## Use it
 
-**Triggers:** **"tale mode"**, **"tale on"**, **"go deep"** — or it
-self-activates on complex multi-step work.
+**Three separate things turn it on — don't confuse them:**
 
-**Slash commands** (Claude Code):
+- **The discipline (the skill)** — say **"tale mode"** or **"tale on"**, or it
+  self-activates on complex multi-step work. This is the everyday mode: plan → verify →
+  review → receipts. It's *soft* — the model loads the skill when the work matches.
+- **The phase commands (explicit)** — `/tale-mode:plan-phase` and
+  `/tale-mode:kickoff-phase`, for big multi-phase features (below). You type these.
+- **The autonomous loop (the hooks)** — runs by itself; see [Autonomous loop](#autonomous-loop).
+  You don't trigger it — the agent arms a goal-file and a `Stop` hook keeps it going.
 
-- `/plan-phase <task>` — plan to the full bar (verify-against-code, receipts,
+**Slash commands** (namespaced under the plugin):
+
+- `/tale-mode:plan-phase <task>` — plan to the full bar (verify-against-code, receipts,
   independent review, runnable gates) before any code. Large features come back
   **decomposed into independently-shippable phases**, each sized for one session.
-- `/kickoff-phase <plan-file> <phase>` — implement **one** phase of a larger plan in
+- `/tale-mode:kickoff-phase <plan-file> <phase>` — implement **one** phase of a larger plan in
   a fresh session. **Runs under plan mode**: re-verifies the plan against the
   current code, interviews you, and waits for your approval before writing anything.
 
@@ -136,29 +143,29 @@ Big features are built one phase at a time, each in its own session, so the work
 context stays lean (a long session re-reads its whole window every turn):
 
 ```text
-/plan-phase <big feature>        → phased plan on disk (Phase 1..N), approved
+/tale-mode:plan-phase <big feature>          → phased plan on disk (Phase 1..N), approved
    /clear  → fresh session
-/kickoff-phase plan.md "Phase 1" → plan mode → you approve → build → PR → stop
+/tale-mode:kickoff-phase plan.md "Phase 1"   → plan mode → you approve → build → PR → stop
    /clear  → fresh session
-/kickoff-phase plan.md "Phase 2" → …
+/tale-mode:kickoff-phase plan.md "Phase 2"   → …
 ```
 
 The plan file on disk is the durable hand-off between sessions; `/clear` between
 phases keeps each one fast. For a small, single-session task, skip the pipeline and
-just use `/plan-phase` (or a trigger).
+just use `/tale-mode:plan-phase` (or a trigger).
 
 **Optional deterministic gates** (run typecheck/lint automatically after edits, so
 "green before you continue" is enforced by the harness, not the model's memory):
-see [`claude-code/HOOKS.md`](claude-code/HOOKS.md).
+see [`docs/HOOKS.md`](docs/HOOKS.md).
 
 ## Autonomous loop
 
-Claude Code's `/goal` and `/loop` are user-only — *you* type them. Tale Mode adds a
+Claude Code's `/goal` and `/loop` are user-only — *you* type them. Tale Mode ships a
 loop the **agent starts itself**: it writes a goal-file (a success condition + a
-*deterministic* `check` command), and a `Stop` hook refuses to let the turn end until
-that check passes — so it grinds a real task to green without you re-prompting each
-step. Opt-in — register the hooks from
-[`claude-code/settings.example.jsonc`](claude-code/settings.example.jsonc).
+*deterministic* `check` command), and a bundled `Stop` hook refuses to let the turn end
+until that check passes — so it grinds a real task to green without you re-prompting each
+step. **It's live the moment the plugin is installed** — the hook ships *inside* the
+plugin; there's nothing to wire up.
 
 ```jsonc
 // .claude/active-goal.json — the agent writes this at the start of a hard, verifiable task
@@ -167,16 +174,33 @@ step. Opt-in — register the hooks from
   "rounds": 0, "max_rounds": 25, "needs_user": null }
 ```
 
-- **Layer 1 — the loop** ([`hooks/stop-goal-loop.sh`](claude-code/hooks/stop-goal-loop.sh)):
-  check fails → the turn is blocked with the *foundation-first / two-strike* disciplines
-  injected; check passes → the goal clears. It can't run forever (`max_rounds` + a
-  fail-open if it can't persist state), and it **pauses for you** (`needs_user`) when it
-  hits something only you can do — a secret, a deploy, a go/no-go — instead of grinding
-  the impossible. 31 tests cover the fail/pass/pause/edge paths.
-- **Layer 2 — the governor** (optional, experimental): a **read-only** `type:"agent"`
-  Stop hook that, once the agent is *stuck* (≥ 2 rounds), reads the plan/code with a fresh
+- **Layer 1 — the loop** (`hooks/stop-goal-loop.sh`, free bash): check fails → the turn is
+  blocked with the *foundation-first / two-strike* disciplines injected; check passes → the
+  goal clears. It can't run forever (`max_rounds` + a fail-open if it can't persist state),
+  and it **pauses for you** (`needs_user`) when it hits something only you can do — a secret,
+  a deploy, a go/no-go — instead of grinding the impossible. **Silent (zero cost) until a
+  goal is armed.** 31 tests cover the fail/pass/pause/edge paths.
+- **Layer 2 — the governor** (default on): a **read-only** `type:"agent"` Stop hook pinned to
+  **Sonnet** that, once the agent is *stuck* (≥ 2 rounds), reads the plan/code with a fresh
   adversarial frame and names the unverified foundation, a violated documented constraint,
   or a band-aid — the failures the deterministic gate can't see.
+
+  > **Cost note (honest):** because it's a `Stop` hook, L2 makes a small **Sonnet call on every
+  > turn-end** — even with no goal armed it spawns, finds no goal-file, and exits. So while the
+  > plugin is enabled it adds a little per-turn latency + token cost to *all* usage (L1, by
+  > contrast, is a free instant bash check). If you only want the free loop + the discipline,
+  > `/plugin disable tale-mode@tale-mode` turns the plugin off.
+
+**Longer loops.** Out of the box the loop stops after Claude Code's default **8 consecutive
+blocked turns** (a platform backstop) even if `max_rounds` is higher — a plugin can't change
+that env var. For loops that legitimately need more, raise it once in `~/.claude/settings.json`:
+
+```json
+{ "env": { "CLAUDE_CODE_STOP_HOOK_BLOCK_CAP": "30" } }
+```
+
+The loop is safe without this — `max_rounds` + the fail-open are self-contained; the cap is
+just a belt.
 
 **Honest scope.** This buys *autonomy*, not IQ. Verified live (`claude -p`): the
 block→re-turn loop, multi-round iteration, `max_rounds` give-up, the agent self-arming a
@@ -196,9 +220,7 @@ right" from **is right**:
 1. **Receipts / provenance** — decisions trace to a source; nothing laundered in.
 2. **Independent adversarial review** — a *separate* agent that reads ground truth
    and tries to break the work, not just same-context self-critique (which can't
-   see its own blind spot). *(Needs a sub-agent-capable host like Claude Code; on
-   the claude.ai app it falls back to fresh-frame self-review — see
-   [Install](#install).)*
+   see its own blind spot).
 3. **Verify against ground truth** — re-read the actual file / run the actual
    command, not "does my output match my plan" (internal consistency ≠ correctness).
 
@@ -207,91 +229,62 @@ Plus a **right-size throttle** so it doesn't ceremony-ize trivial tasks, and
 
 ## Install
 
-### Claude Code (recommended) — one command
+Two commands inside Claude Code:
 
-```bash
-git clone https://github.com/alicicek/tale-mode && cd tale-mode && ./install.sh
+```text
+/plugin marketplace add alicicek/tale-mode
+/plugin install tale-mode@tale-mode
 ```
 
-`./install.sh` installs for **all** projects (`~/.claude`); `./install.sh --project`
-installs into the **current** repo's `.claude/`. It copies the skill, the
-`plan-reviewer` agent, and the `/plan-phase` + `/kickoff-phase` commands, creating
-directories as needed. Safe to re-run — an existing file that differs is backed up
-to `<file>.bak` first. **Start a new Claude Code session afterward** so it loads.
+Then **restart Claude Code** (or run `/reload-plugins`). The plugin is enabled on install
+(`defaultEnabled`), so the skill, the `/tale-mode:plan-phase` + `/tale-mode:kickoff-phase`
+commands, the `plan-reviewer` agent, and the autonomous-loop Stop hook are all live
+immediately. Requires **Claude Code ≥ v2.1.154**.
 
-New to running a stranger's skill? It's deliberately tiny and readable — see
-[Security & trust](#security--trust) before you run anything.
+**Verify it loaded:** `/skills` lists `tale-mode` · `/tale-mode:plan-phase` appears in the
+`/` menu · `/agents` lists `tale-mode:plan-reviewer`.
 
-**Or just hand your agent the link:**
-
-> Install Tale Mode from https://github.com/alicicek/tale-mode — clone it and run
-> `./install.sh` for user scope, then tell me how to trigger it.
-
-<details><summary><b>Manual install</b> (what the script does)</summary>
-
-```bash
-mkdir -p ~/.claude/skills/tale-mode ~/.claude/agents ~/.claude/commands
-cp SKILL.md                              ~/.claude/skills/tale-mode/SKILL.md
-cp claude-code/agents/plan-reviewer.md   ~/.claude/agents/plan-reviewer.md
-cp claude-code/commands/*.md             ~/.claude/commands/
-```
-
-(swap `~/.claude` → `.claude` for a single project)
-
-</details>
-
-**claude.ai app:** put `SKILL.md` in a folder named `tale-mode`, zip the folder,
-and upload at `claude.ai/customize/skills`.
-
-> **Platform support.** The full skill — including the parallel-delegation step
-> and the *independent* adversarial review — needs a host that can spawn
-> sub-agents (Claude Code, today). On the claude.ai app those two steps degrade
-> gracefully: run the strands sequentially and do the review as a deliberately
-> hostile, fresh-frame self-review. The other six steps apply identically
-> everywhere.
+**Not on Claude Code?** The *discipline itself* is portable — the skill at
+[`plugins/tale-mode/skills/tale-mode/SKILL.md`](plugins/tale-mode/skills/tale-mode/SKILL.md)
+works on the claude.ai app: put it in a folder named `tale-mode`, zip it, and upload at
+`claude.ai/customize/skills`. The plugin machinery (commands, agent, autonomous loop) is
+Claude-Code-only.
 
 ## Security & trust
 
-A skill is loaded into your agent's context and, in Claude Code, runs with the
-same privileges you have — so "only install skills you trust" is the right
-instinct (it's [Anthropic's own advice](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview)).
-The honest answer to "is this safe?" isn't *trust me* — it's *read it, it's tiny.*
-The whole project is plain Markdown plus a short install script and one small Stop-hook
-shell script; the entire attack surface is a handful of files you can skim in a few minutes.
+A plugin loads into your agent's context and, in Claude Code, runs with the same
+privileges you have — so "only install plugins you trust" is the right instinct (it's
+[Anthropic's own advice](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview)).
+The honest answer to "is this safe?" isn't *trust me* — it's *read it, it's tiny.* The whole
+plugin is plain Markdown, one ~110-line Stop-hook shell script, and small JSON manifests —
+a handful of files you can skim in a few minutes.
 
 **What it does / doesn't do**
 
-- **No telemetry, no analytics, no background network calls.** `SKILL.md`, the
-  slash-command files, and `install.sh` send nothing anywhere. `install.sh` only
-  runs `mkdir`/`cp`/`cmp` to copy files into your `~/.claude` (or `./.claude`).
-- **Two capabilities worth flagging:** (1) the bundled `plan-reviewer` subagent is
-  granted `Bash` + `WebFetch` (see
-  [`claude-code/agents/plan-reviewer.md`](claude-code/agents/plan-reviewer.md)) so it can
-  run your project's checks and verify cited sources — **only when you invoke a review**,
-  under Claude Code's normal permission prompts. (2) the **opt-in** autonomous-loop hook
-  ([`claude-code/hooks/stop-goal-loop.sh`](claude-code/hooks/stop-goal-loop.sh)) is a Stop
-  hook: once *you've registered it* and the agent has armed a goal-file, it runs that
-  goal-file's `check` command when the turn would otherwise end (unless the goal is paused
-  for you or has hit its round cap). It does nothing unless you register it **and** a goal-file
-  exists; the `check` is a command the agent wrote in your repo — read the script
-  (~110 lines) before enabling.
-- It never asks Claude to read secrets, weaken security, or run destructive
-  commands. The whole point is to make Claude *more* careful.
+- **No telemetry, no analytics, no background network calls.** The skill, command files,
+  and the loop hook send nothing anywhere.
+- **Install/uninstall is Claude Code's built-in `/plugin` mechanism.** It does **not**
+  hand-edit your `~/.claude/settings.json` hooks or permissions — it only records the plugin
+  in a Claude-Code-managed `enabledPlugins` registry. `/plugin uninstall tale-mode@tale-mode`
+  removes everything (skill, commands, agent, hooks) cleanly, with no settings surgery.
+- **Three capabilities worth flagging:**
+  1. the bundled `plan-reviewer` agent is granted `Bash` + `WebFetch` so it can run your
+     project's checks and verify cited sources — **only when you invoke a review**, under
+     Claude Code's normal permission prompts.
+  2. the **autonomous-loop Stop hook is on by default**. It runs on every turn-end but **does
+     nothing until the agent arms a `.claude/active-goal.json`**; when armed, it runs *that
+     goal-file's `check` command* — a shell command the agent wrote in your repo — to decide
+     whether to keep going. Read
+     [`plugins/tale-mode/hooks/stop-goal-loop.sh`](plugins/tale-mode/hooks/stop-goal-loop.sh)
+     (~110 lines) so you know exactly what runs and when.
+  3. the **Layer-2 governor** is a **read-only** (`Read`/`Grep`/`Glob`) Sonnet hook — it can
+     read your code to spot an anchor, but cannot run shell or write files.
+- It never asks Claude to read secrets, weaken security, or run destructive commands. The
+  whole point is to make Claude *more* careful.
 
-**Verify before you run** — read these files; that's everything:
-`SKILL.md` · `install.sh` · `claude-code/agents/plan-reviewer.md` ·
-`claude-code/commands/plan-phase.md` · `claude-code/commands/kickoff-phase.md`. And before
-you enable the optional loop: `claude-code/hooks/stop-goal-loop.sh` + `settings.example.jsonc`.
-
-**Pin it** (recommended for shared or work machines) — review a commit, then
-install exactly that version instead of tracking `main`:
-
-```bash
-git clone https://github.com/alicicek/tale-mode && cd tale-mode
-git checkout <commit-sha>   # a commit you've read — copy the SHA from GitHub
-less install.sh             # confirm: it only copies files into ~/.claude
-./install.sh
-```
+**Read these before you trust it** (all under `plugins/tale-mode/`):
+`skills/tale-mode/SKILL.md` · `commands/plan-phase.md` · `commands/kickoff-phase.md` ·
+`agents/plan-reviewer.md` · `hooks/stop-goal-loop.sh` · `hooks/hooks.json`.
 
 Found a problem? See [`SECURITY.md`](SECURITY.md).
 
@@ -334,36 +327,52 @@ instead of a "trust me.")
 ## What's in the box
 
 ```text
-tale-mode/
-├── README.md, LICENSE, SECURITY.md   # readme · MIT license · disclosure policy
-├── SKILL.md                 # the operating mode (portable — works on any host)
-├── install.sh               # one-command installer (user or --project scope)
-├── docs/
-│   └── autonomous-loop-design.md   # design rationale + honest build log
-└── claude-code/             # Claude Code-specific assets
-    ├── HOOKS.md             # optional deterministic typecheck/lint gates
-    ├── settings.example.jsonc      # register the autonomous-loop hooks (opt-in)
-    ├── hooks/
-    │   ├── stop-goal-loop.sh        # the self-armed goal loop (Layer 1)
-    │   └── test-stop-goal-loop.sh   # 31 tests for its fail/pass/edge paths
-    ├── agents/
-    │   └── plan-reviewer.md  # the independent adversarial reviewer
-    └── commands/
-        ├── plan-phase.md     # /plan-phase  — verified, phased planning
-        └── kickoff-phase.md  # /kickoff-phase — build one phase, under plan mode
+tale-mode/                                 (repo — also the plugin marketplace)
+├── .claude-plugin/
+│   └── marketplace.json                   # makes the repo installable via /plugin
+├── README.md · LICENSE · SECURITY.md
+├── docs/                                  # rationale + notes (not shipped in the plugin)
+│   ├── autonomous-loop-design.md          #   design rationale + honest build log
+│   └── HOOKS.md                           #   optional deterministic typecheck/lint gates
+├── tests/
+│   └── test-stop-goal-loop.sh             # 31 tests for the loop hook
+└── plugins/
+    └── tale-mode/                         # the plugin
+        ├── .claude-plugin/plugin.json     # metadata (defaultEnabled)
+        ├── skills/tale-mode/SKILL.md      # the discipline (auto-activates on "tale mode")
+        ├── commands/                      # /tale-mode:plan-phase · /tale-mode:kickoff-phase
+        ├── agents/plan-reviewer.md        # the independent adversarial reviewer
+        └── hooks/
+            ├── hooks.json                 # wires the Stop hook: L1 loop + L2 Sonnet governor
+            └── stop-goal-loop.sh          # the self-armed goal loop (Layer 1)
 ```
 
 `SKILL.md` is the whole methodology and is the only file the claude.ai app needs.
-Everything under `claude-code/` adds the sub-agent and slash-command machinery that
-hosts with delegation can use.
+Everything else adds the slash-command, sub-agent, and autonomous-loop machinery that
+Claude Code uses.
+
+## Managing / removing
+
+It's a normal Claude Code plugin — manage it with the built-in commands (or just ask
+Claude, e.g. *"remove tale mode"*, and it'll point you here):
+
+```text
+/plugin uninstall tale-mode@tale-mode   # remove everything (skill, commands, agent, hooks) — atomic
+/plugin disable   tale-mode@tale-mode   # turn it off but keep it installed
+/plugin update    tale-mode@tale-mode   # pull the latest
+```
+
+Uninstall is clean: it removes the plugin's files and its `enabledPlugins` entry, and never
+touches the rest of your `settings.json`. (A goal-file you armed in a project, e.g.
+`.claude/active-goal.json`, is harmless once the hook is gone — delete it if you like.)
 
 ## Contributing
 
 Issues and PRs welcome. This repo is dogfooded — if you're proposing a change to
 the methodology, run it through the `plan-reviewer` agent first and include what it
 found (that's the [receipts](#what-makes-it-different) discipline applied to
-the repo itself). Keep edits to `SKILL.md` host-agnostic; put anything
-Claude Code-specific under `claude-code/`.
+the repo itself). Keep edits to `SKILL.md` host-agnostic; put Claude Code-specific
+assets under `plugins/tale-mode/`.
 
 ## License
 

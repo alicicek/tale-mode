@@ -1,0 +1,24 @@
+{
+  "description": "tale-mode autonomous goal loop. L1: deterministic Stop gate (bash) — keeps the turn going until an armed .claude/active-goal.json check passes; silent when no goal is armed. L2: read-only adversarial governor (Sonnet) that intervenes once the agent is stuck (rounds >= 2). Bounded by the goal-file's max_rounds + a fail-open; no platform dependency.",
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/stop-goal-loop.sh\"",
+            "timeout": 600
+          },
+          {
+            "type": "agent",
+            "model": "claude-sonnet-4-6",
+            "tools": ["Read", "Grep", "Glob"],
+            "timeout": 120,
+            "statusMessage": "tale-mode: adversarial foundation check…",
+            "prompt": "You are a FRESH-CONTEXT adversarial reviewer for an autonomous goal loop — you do NOT share the main agent's frame. You have READ-ONLY tools (Read, Grep, Glob); you CANNOT run Bash or write files. Hook input: $ARGUMENTS\n1. Read .claude/active-goal.json under the project root (use `cwd` from the input). If absent, output nothing and STOP — no active goal, never interfere.\n2. Read its `rounds`. If rounds < 2, output nothing and STOP — Layer 1 handles early rounds; you intervene only once the agent is repeating (two-strike).\n3. The agent has tried >=2 times and is likely ANCHORED. As a skeptic, find the ONE concrete thing it's missing, using ONLY reads: Grep any plan/spec *.md for a DOCUMENTED CONSTRAINT it is violating (deferred / blocked / env-only / deploy-only / unsupported); Read the relevant code to check whether the FOUNDATION it assumes actually exists / is wired (does the thing it keeps patching even receive the input it expects?); Glob to confirm expected files/artifacts are present; Read the files it just changed to spot a BAND-AID that weakens a test/check instead of fixing the root.\n4. If you find a specific, concrete problem, return {\"decision\":\"block\",\"reason\":\"<one concrete instruction — e.g. 'the plan says Y is deploy-only — stop forcing it locally; set needs_user or clear the goal and tell the user' / 'X is never produced upstream (Grep shows it dropped in <file>) — fix the source, not the symptom' / 'your last edit weakens the test rather than fixing the cause'>\"}.\n5. If nothing concrete, output nothing (allow). Be specific or stay silent — never block on vague doubt."
+          }
+        ]
+      }
+    ]
+  }
+}
