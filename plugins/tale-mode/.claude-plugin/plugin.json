@@ -3,7 +3,7 @@
   "name": "tale-mode",
   "displayName": "Tale Mode",
   "version": "1.0.0",
-  "description": "A discipline mode for complex/high-stakes work: staged planning, decisions-with-receipts, verify-against-source, parallel delegation, adversarial review — plus a self-armed autonomous goal loop (a deterministic Stop gate and a read-only Sonnet governor).",
+  "description": "A discipline mode for complex/high-stakes work: staged planning, decisions-with-receipts, verify-against-source, parallel delegation, adversarial review — plus a self-armed autonomous goal loop (a deterministic Stop gate; the optional read-only Sonnet governor ships as the companion plugin tale-mode-governor).",
   "author": {
     "name": "Ali Cicek",
     "url": "https://github.com/alicicek"

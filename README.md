@@ -180,16 +180,18 @@ plugin; there's nothing to wire up.
   and it **pauses for you** (`needs_user`) when it hits something only you can do — a secret,
   a deploy, a go/no-go — instead of grinding the impossible. **Silent (zero cost) until a
   goal is armed.** 31 tests cover the fail/pass/pause/edge paths.
-- **Layer 2 — the governor** (default on): a **read-only** `type:"agent"` Stop hook pinned to
-  **Sonnet** that, once the agent is *stuck* (≥ 2 rounds), reads the plan/code with a fresh
-  adversarial frame and names the unverified foundation, a violated documented constraint,
-  or a band-aid — the failures the deterministic gate can't see.
+- **Layer 2 — the governor** (optional, *separate* plugin): a **read-only** `type:"agent"` Stop hook
+  pinned to **Sonnet** that, once the agent is *stuck* (≥ 2 rounds), reads the plan/code with a fresh
+  adversarial frame and names the unverified foundation, a violated documented constraint, or a
+  band-aid — the failures the deterministic gate can't see. It ships as a **companion plugin** you add
+  only if you want it: `/plugin install tale-mode-governor@tale-mode`.
 
-  > **Cost note (honest):** because it's a `Stop` hook, L2 makes a small **Sonnet call on every
-  > turn-end** — even with no goal armed it spawns, finds no goal-file, and exits. So while the
-  > plugin is enabled it adds a little per-turn latency + token cost to *all* usage (L1, by
-  > contrast, is a free instant bash check). If you only want the free loop + the discipline,
-  > `/plugin disable tale-mode@tale-mode` turns the plugin off.
+  > **Why it's separate (honest):** an agent `Stop` hook makes a small **Sonnet call on every
+  > turn-end** — even with no goal armed it spawns, finds no goal-file, and exits — so while it's
+  > enabled it adds a little per-turn latency + token cost to *all* usage. L1 (the core) is a free
+  > instant bash check, so the **default install stays free + snappy**; the governor is opt-in for
+  > those who want anchor-breaking on stuck loops. Remove it any time with
+  > `/plugin uninstall tale-mode-governor@tale-mode`.
 
 **Longer loops.** Out of the box the loop stops after Claude Code's default **8 consecutive
 blocked turns** (a platform backstop) even if `max_rounds` is higher — a plugin can't change
@@ -233,13 +235,15 @@ Two commands inside Claude Code:
 
 ```text
 /plugin marketplace add alicicek/tale-mode
-/plugin install tale-mode@tale-mode
+/plugin install tale-mode@tale-mode               # core: skill + commands + agent + the free loop
+/plugin install tale-mode-governor@tale-mode      # OPTIONAL: the Sonnet governor (per-turn cost)
 ```
 
-Then **restart Claude Code** (or run `/reload-plugins`). The plugin is enabled on install
-(`defaultEnabled`), so the skill, the `/tale-mode:plan-phase` + `/tale-mode:kickoff-phase`
-commands, the `plan-reviewer` agent, and the autonomous-loop Stop hook are all live
-immediately. Requires **Claude Code ≥ v2.1.154**.
+Then **restart Claude Code** (or run `/reload-plugins`). The **core** plugin is enabled on install
+(`defaultEnabled`), so the skill, the `/tale-mode:plan-phase` + `/tale-mode:kickoff-phase` commands,
+the `plan-reviewer` agent, and the free Layer-1 loop are live immediately. The **governor** is a
+*separate, optional* install — it adds a per-turn model call (see [Autonomous loop](#autonomous-loop)).
+Requires **Claude Code ≥ v2.1.154**.
 
 **Verify it loaded:** `/skills` lists `tale-mode` · `/tale-mode:plan-phase` appears in the
 `/` menu · `/agents` lists `tale-mode:plan-reviewer`.
@@ -337,14 +341,17 @@ tale-mode/                                 (repo — also the plugin marketplace
 ├── tests/
 │   └── test-stop-goal-loop.sh             # 31 tests for the loop hook
 └── plugins/
-    └── tale-mode/                         # the plugin
-        ├── .claude-plugin/plugin.json     # metadata (defaultEnabled)
-        ├── skills/tale-mode/SKILL.md      # the discipline (auto-activates on "tale mode")
-        ├── commands/                      # /tale-mode:plan-phase · /tale-mode:kickoff-phase
-        ├── agents/plan-reviewer.md        # the independent adversarial reviewer
-        └── hooks/
-            ├── hooks.json                 # wires the Stop hook: L1 loop + L2 Sonnet governor
-            └── stop-goal-loop.sh          # the self-armed goal loop (Layer 1)
+    ├── tale-mode/                         # CORE plugin (free)
+    │   ├── .claude-plugin/plugin.json     # metadata (defaultEnabled)
+    │   ├── skills/tale-mode/SKILL.md      # the discipline (auto-activates on "tale mode")
+    │   ├── commands/                      # /tale-mode:plan-phase · /tale-mode:kickoff-phase
+    │   ├── agents/plan-reviewer.md        # the independent adversarial reviewer
+    │   └── hooks/
+    │       ├── hooks.json                 # wires the Stop hook: Layer 1 (the free loop)
+    │       └── stop-goal-loop.sh          # the self-armed goal loop (Layer 1)
+    └── tale-mode-governor/                # OPTIONAL companion (per-turn Sonnet cost)
+        ├── .claude-plugin/plugin.json     # metadata (depends on tale-mode)
+        └── hooks/hooks.json               # Layer 2: the read-only Sonnet governor
 ```
 
 `SKILL.md` is the whole methodology and is the only file the claude.ai app needs.
@@ -357,9 +364,10 @@ It's a normal Claude Code plugin — manage it with the built-in commands (or ju
 Claude, e.g. *"remove tale mode"*, and it'll point you here):
 
 ```text
-/plugin uninstall tale-mode@tale-mode   # remove everything (skill, commands, agent, hooks) — atomic
-/plugin disable   tale-mode@tale-mode   # turn it off but keep it installed
-/plugin update    tale-mode@tale-mode   # pull the latest
+/plugin uninstall tale-mode@tale-mode             # remove the core (skill, commands, agent, loop)
+/plugin uninstall tale-mode-governor@tale-mode    # remove the governor (if you installed it)
+/plugin disable   tale-mode@tale-mode             # turn it off but keep it installed
+/plugin update    tale-mode@tale-mode             # pull the latest
 ```
 
 Uninstall is clean: it removes the plugin's files and its `enabledPlugins` entry, and never
