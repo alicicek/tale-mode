@@ -1,8 +1,9 @@
 ---
 name: tale-mode
+version: 1.0.0
 description: >-
   Make Claude work rigorously on complex or high-stakes tasks instead of
-  one-shotting them. Triggers: "tale mode", "tale on", "go deep" — or
+  one-shotting them. Triggers: "tale mode", "tale on" — or
   self-activates on hard multi-step work. Enforces
   staged planning, decisions-with-receipts, verifying claims against the real
   source (not memory), parallel delegation, an independent adversarial review for
@@ -274,9 +275,11 @@ The disciplines above are *how* to work; this lets you **keep working without th
 re-prompting every step.** Claude Code's `/goal` and `/loop` are user-only — you can't type
 them. This is the loop you *can* start yourself: **arm a goal-file that a Stop hook enforces.**
 
-**Setup (once):** register `hooks/stop-goal-loop.sh` as a `Stop` hook and raise the block cap
-— copy `settings.example.jsonc` into your Claude Code settings. Proven: `bash
-hooks/test-stop-goal-loop.sh` (31 checks across 12 cases — fail/pass/pause/edge).
+**Setup:** none — the Stop hook ships *inside* the tale-mode Claude Code plugin and is registered
+automatically on install (default-on). For loops longer than ~8 rounds, raise
+`CLAUDE_CODE_STOP_HOOK_BLOCK_CAP` in `~/.claude/settings.json` (the loop is safe without it —
+`max_rounds` + a fail-open are self-contained). Proven: 31 checks across 12 cases
+(fail/pass/pause/edge) in `tests/test-stop-goal-loop.sh`.
 
 **Arm a goal** — write `<project>/.claude/active-goal.json` when you start a hard,
 *observably-verifiable* task:
@@ -303,11 +306,11 @@ force a pass; that band-aid is the exact thing this system exists to prevent.
 **Arm it for** observable goals (a debug — "the repro passes"; a feature — "the test is green";
 a phase). Not pure-judgment goals (no deterministic check → nothing to gate on).
 
-**Layer 2 (optional, the adversarial governor):** a `type:"agent"` Stop hook — a FRESH-CONTEXT,
-**read-only** reviewer (Read/Grep/Glob) that, once you're stuck (`rounds` ≥ 2), reads the goal/plan/code
-with a skeptic's frame and names the unverified *foundation*, a violated *documented constraint*, or a
-*band-aid* — the failures Layer 1 can't see. It breaks the anchor (verified to fire in `-p`). Config +
-caveats (experimental; read-only) in `settings.example.jsonc`. Enable deliberately.
+**Layer 2 (the adversarial governor, default-on):** a `type:"agent"` Stop hook — a FRESH-CONTEXT,
+**read-only** reviewer (Read/Grep/Glob) pinned to Sonnet that, once you're stuck (`rounds` ≥ 2), reads
+the goal/plan/code with a skeptic's frame and names the unverified *foundation*, a violated *documented
+constraint*, or a *band-aid* — the failures Layer 1 can't see. It breaks the anchor (verified to fire in
+`-p`). Ships in the plugin's `hooks/hooks.json`; it self-exits cheaply on a normal turn.
 
 **Live-test the runtime** (the script proves the hook's logic; only a live session proves Claude
 Code re-runs the turn on a block): arm `{"goal":"marker","check":"test -f /tmp/tale-done","rounds":0,"max_rounds":5}`,

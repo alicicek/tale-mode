@@ -231,6 +231,10 @@ Each step: build **and test its fail-case + pass-case** before moving on (the di
 8. **Live-test all three use cases** (simple / multi-phase / debugging) end-to-end.
 
 ## 10. Packaging in tale-mode (open-source, general)
+> **SUPERSEDED — tale-mode now ships as a Claude Code *plugin*** (see the README). The loop is
+> bundled in the plugin's `hooks/hooks.json` (L1 command + L2 read-only Sonnet governor, default-on);
+> there is no `settings.example.jsonc` to copy, and install/uninstall is `/plugin`. The notes below
+> are the original (pre-plugin) packaging design, kept as build log.
 - `hooks/stop-goal-loop.sh` (+ the analyzer caller) — generic; the only project input is the goal-file's `check`.
 - `SKILL.md` — a "Autonomous goal loop" section explaining arm → loop → analyzer → pause/done.
 - `settings.example.jsonc` — the Stop-hook registration + the cap env, for users to copy.
