@@ -46,7 +46,9 @@ exists, say **"recommend changing the plan"** and cite the exact line. Batch eve
 question into one round; proceed on your own production-grade judgment for everything else.
 
 Once I answer: present the concrete approach for this chunk and **get my approval
-to exit plan mode** (ExitPlanMode). Only then implement on a dedicated branch, then
+to exit plan mode** (ExitPlanMode). Only then implement on a dedicated branch. **Exiting
+plan mode authorizes EDITING, not committing — get my explicit sign-off before EVERY
+`git commit` and EVERY push (pause and summarize what you'd commit each time).** Then
 **prove it by running it, not by reading the diff** — use `/verify` to confirm the
 chunk behaves as intended and `/run` to boot and drive the live app, whenever the
 change is actually runnable (pick what fits: pure logic → `/verify` against a test;
@@ -60,21 +62,23 @@ hostile senior reviewing a junior's PR, running the §5 blind-spot checklist), f
 every P0/P1, **re-review the post-fix delta in a fresh frame**, repeat until a fresh
 pass finds no P0/P1.
 
-Then **open the PR and run the cross-model loop** — the load-bearing gate, not a
-courtesy (a different model catches the bug-class your own passes structurally miss):
-**fetch Greptile's review** (the Greptile plugin, or `gh pr view <pr> --json
-reviews,comments` / `gh api`), **fix every P0/P1 it flags, push (re-triggers
-Greptile), poll for its re-review, and repeat until Greptile reports zero P0/P1.**
-
-**Keep looping the gate yourself** (review → fix → re-fetch Greptile → re-review) until
-it converges to zero P0/P1 — don't stop at the first pass. You can't start `/goal` (it's
-a user command); when the gate is worth an enforced backstop, surface it — the user can
-wrap the session in `/goal: the fresh-context adversarial review AND Greptile's PR review
-both report zero P0/P1 (verdicts pasted) and every finding addressed.` Gate on the clean
-reviews, not green tests; cap the rounds. Before
+Then, **only on my go-ahead, open the PR** — opening or pushing a PR triggers CI and can
+trigger metered reviewers, so never open or push without my sign-off. A cross-model review
+is the strongest §5 pass (a different model catches the bug-class your own passes
+structurally miss) — **but metered bots (Greptile, CodeRabbit, …) are CREDIT-METERED and
+OWNER-TRIGGERED: do NOT auto-run them, do NOT comment `@greptile review`, and do NOT
+push-loop them (every push to an open PR re-triggers the bot = real money). Auto-running a
+metered tool is the same class of mistake as any outward-facing/cost-incurring action —
+confirm first.** Tell me a cross-model pass is available and let me decide whether/when to
+spend it. If I run it, **fix every P0/P1 it flags, then ask before pushing** (I control each
+re-trigger) and batch fixes into a single push. Gate on the clean reviews, not green tests;
+cap the rounds. You can't start `/goal` (it's a user command); when an enforced backstop is
+worth it, surface it — I can wrap the session in `/goal: the fresh-context adversarial review
+reports zero P0/P1 (verdict pasted) and every finding addressed.` Before
 declaring done, **emit a DONE/MISSING table** for the gate (one row each: `/verify`,
-`/run`, `/code-review`, `/security-review`, fresh-eyes review, Greptile clean, plan
-progress updated) so a skip shows as a MISSING cell, not a silent omission. **If a
+`/run`, `/code-review`, `/security-review`, fresh-eyes review, cross-model review
+(owner-triggered — mark N/A if I didn't run it), plan progress updated) so a skip shows as
+a MISSING cell, not a silent omission. **If a
 behavioral check can't run yet (needs external provisioning), don't skip it silently —
 record it as a named, owned deferral in the plan's progress and treat the chunk as
 not-done until discharged.** Merge only on my go-ahead. When done, update the plan

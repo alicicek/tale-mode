@@ -210,7 +210,8 @@ costliest failure mode here. Work foundation-first:
   clean-context pass beats re-reading in the same context. **Strongest of all is a
   *different model*** (different training → different blind spots; e.g. Greptile / GLM
   on the PR catches what more of your own model can't — it's what catches the class of
-  bug your in-session reviews structurally share). A fresh-context same-model pass (a
+  bug your in-session reviews structurally share; **metered bots are owner-triggered —
+  surface the option, never auto-run or push-loop them**). A fresh-context same-model pass (a
   sub-agent, or `/clear` on a host without them) is the always-available floor. (Use
   the `plan-reviewer` agent if installed.)
 - **Run the blind-spot checklist mechanically** — these are "correct in-session,
