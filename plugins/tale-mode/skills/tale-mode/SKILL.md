@@ -94,7 +94,9 @@ via the tiers above.)
 ### 1. Map the work before acting
 Write the plan first. Number the stages; for each, state the **expected output**
 and how you'll know it's right. Define **done** up front — the concrete condition
-that lets you stop. A plan you can't check against isn't a plan.
+that lets you stop. A plan you can't check against isn't a plan. **Split each "done" claim by
+how it's judged:** *testable* → a deterministic command (the arbiter, §4); *un-testable* → a §5
+review. Don't dress an un-testable claim as a passing test.
 
 ### 2. Decisions carry receipts
 Every non-trivial decision traces to a source. Tag each one:
@@ -207,13 +209,18 @@ costliest failure mode here. Work foundation-first:
   sub-agent with a clean context**, hand it ONLY the diff + the spec + the checklist
   below, and frame it hostile: *"you're a jaded senior reviewing a rushed junior's PR
   — assume it's wrong until proven right; hunt what breaks out-of-session."* The fresh, adversarial frame is the unlock — a
-  clean-context pass beats re-reading in the same context. **Strongest of all is a
-  *different model*** (different training → different blind spots; e.g. Greptile / GLM
-  on the PR catches what more of your own model can't — it's what catches the class of
-  bug your in-session reviews structurally share; **metered bots are owner-triggered —
-  surface the option, never auto-run or push-loop them**). A fresh-context same-model pass (a
-  sub-agent, or `/clear` on a host without them) is the always-available floor. (Use
-  the `plan-reviewer` agent if installed.)
+  clean-context pass beats re-reading in the same context. **Order your verdict by *independence* — the validator that least
+  shares your blind spots wins.** (1) **The arbiter of "done" is §4's deterministic gates** —
+  a real test/command exits 0 or it doesn't; zero model bias, nothing to fool. (2) **The
+  strongest *review* is a different model** (different training → different blind spots; e.g.
+  Greptile / GLM on the PR catches the class of bug your own passes *structurally* share —
+  empirically, a real session's own `/code-review` + self-critique + same-model `plan-reviewer`
+  all missed a bug that cross-model Greptile caught; **metered bots are owner-triggered — surface
+  the option, never auto-run or push-loop them**). (3) **A fresh-context *same-model* pass** (a
+  sub-agent / the `plan-reviewer` agent, or `/clear`) breaks your *context* anchor but still
+  shares your *model's* blind spots — so it's the **anchoring-breaker and always-available floor,
+  never the final arbiter.** Use it to surface candidates; let the deterministic gate and the
+  different-model pass *settle* them.
 - **Run the blind-spot checklist mechanically** — these are "correct in-session,
   wrong out-of-session" misses that are invisible to reasoning, so check them as a
   list, never by thinking harder:
@@ -275,6 +282,10 @@ moment the session resets.**
 The disciplines above are *how* to work; this lets you **keep working without the user
 re-prompting every step.** Claude Code's `/goal` and `/loop` are user-only — you can't type
 them. This is the loop you *can* start yourself: **arm a goal-file that a Stop hook enforces.**
+**These are *separate systems* — don't conflate them:** `/goal` is a built-in that judges a
+natural-language condition with a *model reading the transcript*; the goal-file here runs a
+*deterministic shell `check`*. Running `/goal` does **not** arm this goal-file or the L2 governor,
+and this loop does not depend on `/goal`.
 
 **Setup:** none — the Stop hook ships *inside* the tale-mode Claude Code plugin and is registered
 automatically on install (default-on). For loops longer than ~8 rounds, raise
@@ -291,7 +302,11 @@ automatically on install (default-on). For loops longer than ~8 rounds, raise
 ```
 - `check` is a **deterministic** shell command — exit 0 means done. It's the gate (a real
   command, stronger than a model reading the chat). Pick one that **can't pass on a band-aid**
-  (a real test/E2E, never `echo PASSED`).
+  (a real test/E2E, never `echo PASSED`). **Judge-to-claim:** put every *testable* "done" claim
+  in `check` — it's the arbiter. For a genuinely *un-testable* condition ("the review found no
+  P0/P1"), do NOT fake it into a shell check that can pass on a band-aid — route it to a §5
+  cross-model / fresh-eyes review (or, to enforce it, the *user* wraps the session in `/goal`,
+  which model-judges the transcript).
 - From then on, each time you'd end the turn the hook runs `check`. Fails → you get another
   turn, with the foundation-first + two-strike disciplines injected as the reason. Passes →
   the file clears and the turn ends. You literally cannot stop until it's true.

@@ -37,7 +37,29 @@ INPUT=$(cat 2>/dev/null || true)
 # .claude/active-goal.json under an agent-controlled cwd must never trap an unrelated turn.
 ROOT="${CLAUDE_PROJECT_DIR:-}"
 [ -n "$ROOT" ] || exit 0
-GOAL_FILE="$ROOT/.claude/active-goal.json"
+# Session-scope the goal-file: a goal armed by one session must never trap another in the same
+# repo (a crashed/previous session leaves its file; per-session keying means we only ever read
+# OUR session's). session_id is a common Stop-hook input field; validate it as a safe filename
+# token first. Empty/absent/invalid (or no jq) -> the legacy unsuffixed file, preserving v1.
+SID=""
+command -v jq >/dev/null 2>&1 && SID=$(printf '%s' "$INPUT" | jq -r '.session_id // ""' 2>/dev/null || true)
+case "$SID" in (*[!a-zA-Z0-9_-]*|'') SID="" ;; esac
+if [ -n "$SID" ]; then
+  GOAL_FILE="$ROOT/.claude/active-goal.$SID.json"
+  LEGACY="$ROOT/.claude/active-goal.json"
+  # The agent arms by writing the simple `active-goal.json` (it doesn't know its own session_id).
+  # Claim it for THIS session — move it to the scoped path so only OUR session ever reads it, and
+  # a goal can't trap a different session. (-f so a re-arm overwrites the prior scoped goal.)
+  [ -f "$LEGACY" ] && mv -f "$LEGACY" "$GOAL_FILE" 2>/dev/null || true
+  # Hygiene (only once WE have an active goal — keeps normal turns silent): reap OTHER sessions'
+  # goal-files once clearly stale (a crashed session never clears its own). Never ours; never
+  # within the lease window — the per-round rewrite below refreshes mtime, so a live loop
+  # survives. Best-effort; the per-session key above is the real fix, not this.
+  [ -f "$GOAL_FILE" ] && command -v find >/dev/null 2>&1 && find "$ROOT/.claude" -maxdepth 1 -type f \
+    -name 'active-goal.*.json' ! -name "active-goal.$SID.json" -mmin +"${TALE_GOAL_TTL_MIN:-30}" -delete 2>/dev/null
+else
+  GOAL_FILE="$ROOT/.claude/active-goal.json"
+fi
 
 # No active goal -> never interfere with a normal turn.
 [ -f "$GOAL_FILE" ] || exit 0

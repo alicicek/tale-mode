@@ -7,11 +7,12 @@
 set -uo pipefail
 HOOK="$(cd "$(dirname "$0")/../plugins/tale-mode/hooks" && pwd)/stop-goal-loop.sh"
 PASS=0; FAIL=0; WORK=""
+SID="s1testsession"   # a fixed, valid session id -> the scoped goal-file path the hook now uses
 
 newwork() { WORK=$(mktemp -d); mkdir -p "$WORK/.claude"; }
-gf()      { echo "$WORK/.claude/active-goal.json"; }
-arm()     { printf '%s' "$1" > "$(gf)"; }
-run()     { OUT=$(printf '{"cwd":"%s","stop_hook_active":false,"hook_event_name":"Stop"}' "$WORK" \
+gf()      { echo "$WORK/.claude/active-goal.$SID.json"; }   # where the goal lives after the hook adopts it
+arm()     { printf '%s' "$1" > "$WORK/.claude/active-goal.json"; }   # the agent writes the SIMPLE path; the hook claims it
+run()     { OUT=$(printf '{"session_id":"%s","cwd":"%s","stop_hook_active":false,"hook_event_name":"Stop"}' "$SID" "$WORK" \
               | CLAUDE_PROJECT_DIR="$WORK" bash "$HOOK"); RC=$?; }   # pin ROOT to WORK (safe + deterministic)
 ok()      { if eval "$2"; then echo "  PASS  $1"; PASS=$((PASS+1)); else echo "  FAIL  $1  | OUT=<$OUT> RC=$RC"; FAIL=$((FAIL+1)); fi; }
 
@@ -66,7 +67,7 @@ newwork; arm '{"goal":"g","check":"false","rounds":1,"max_rounds":25,"needs_user
 ok "decision=block"    'printf "%s" "$OUT" | jq -e ".decision==\"block\"" >/dev/null'
 
 echo "10) rounds-rewrite FAILS (read-only .claude) -> fail OPEN, never block forever"
-newwork; arm '{"goal":"g","check":"false","rounds":3,"max_rounds":25}'; chmod 555 "$WORK/.claude"; run; chmod 755 "$WORK/.claude"
+newwork; printf '%s' '{"goal":"g","check":"false","rounds":3,"max_rounds":25}' > "$(gf)"; chmod 555 "$WORK/.claude"; run; chmod 755 "$WORK/.claude"
 ok "exit 0"            '[ "$RC" -eq 0 ]'
 ok "NOT blocking"      '! printf "%s" "$OUT" | jq -e ".decision==\"block\"" >/dev/null 2>&1'
 ok "fail-open message" 'printf "%s" "$OUT" | jq -r ".systemMessage" | grep -q "cannot persist"'
@@ -82,6 +83,29 @@ newwork; arm '{"goal":"g","check":"false","rounds":0,"max_rounds":25}'
 OUT=$(printf '{"cwd":"%s","stop_hook_active":false,"hook_event_name":"Stop"}' "$WORK" | env -u CLAUDE_PROJECT_DIR bash "$HOOK"); RC=$?
 ok "exit 0"            '[ "$RC" -eq 0 ]'
 ok "NOT blocking"      '! printf "%s" "$OUT" | jq -e ".decision==\"block\"" >/dev/null 2>&1'
+
+echo "13) session-scoped: a goal armed by session A does NOT trap session B"
+newwork
+printf '%s' '{"goal":"A","check":"false","rounds":0,"max_rounds":25}' > "$WORK/.claude/active-goal.sessA.json"
+OUT=$(printf '{"session_id":"sessB","cwd":"%s","stop_hook_active":false,"hook_event_name":"Stop"}' "$WORK" | CLAUDE_PROJECT_DIR="$WORK" bash "$HOOK"); RC=$?
+ok "exit 0"                    '[ "$RC" -eq 0 ]'
+ok "B not blocked by A's goal" '! printf "%s" "$OUT" | jq -e ".decision==\"block\"" >/dev/null 2>&1'
+ok "A's goal untouched"        '[ -f "$WORK/.claude/active-goal.sessA.json" ]'
+
+echo "14) no session_id -> legacy unsuffixed goal-file still works (v1 fallback)"
+newwork
+printf '%s' '{"goal":"legacy","check":"false","rounds":0,"max_rounds":25}' > "$WORK/.claude/active-goal.json"
+OUT=$(printf '{"cwd":"%s","stop_hook_active":false,"hook_event_name":"Stop"}' "$WORK" | CLAUDE_PROJECT_DIR="$WORK" bash "$HOOK"); RC=$?
+ok "legacy path blocks"        'printf "%s" "$OUT" | jq -e ".decision==\"block\"" >/dev/null'
+
+echo "15) reap: a STALE foreign goal-file is removed; the live one is kept"
+newwork
+printf '%s' '{"goal":"current","check":"false","rounds":0,"max_rounds":25}' > "$WORK/.claude/active-goal.live.json"
+printf '%s' '{"goal":"orphan","check":"false","rounds":0,"max_rounds":25}' > "$WORK/.claude/active-goal.dead.json"
+touch -t 202001010000 "$WORK/.claude/active-goal.dead.json"
+OUT=$(printf '{"session_id":"live","cwd":"%s","stop_hook_active":false,"hook_event_name":"Stop"}' "$WORK" | CLAUDE_PROJECT_DIR="$WORK" bash "$HOOK"); RC=$?
+ok "stale foreign reaped"      '[ ! -f "$WORK/.claude/active-goal.dead.json" ]'
+ok "current goal kept"         '[ -f "$WORK/.claude/active-goal.live.json" ]'
 
 echo
 echo "RESULT: $PASS passed, $FAIL failed"
