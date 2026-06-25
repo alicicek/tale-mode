@@ -40,7 +40,7 @@ not skip a step:
    executor re-derives specifics against live code at kickoff. Order them
    foundation-first (the dependency root, gated green), then independent fan-out
    where parallelizable. For a multi-phase plan, emit a progress tracker and a
-   `/kickoff-phase <this-file> "Phase N"` cue per phase.
+   `/tale-mode:kickoff-phase <this-file> "Phase N"` cue per phase.
 7. **Runnable gates.** Exact commands with expected output — never "test it" — and
    note what each check can't catch. A clean diff is not evidence; run it. For each
    phase, name the behavioral check that proves it works (`/verify`; `/run` for
@@ -51,5 +51,5 @@ not skip a step:
 
 State the risk tier up front (touches auth / data / money / security → full
 ceremony incl. the §4 review; otherwise lighter). Write the plan to a durable
-file — label each phase so `/kickoff-phase` can target it by name. Then request
+file — label each phase so `/tale-mode:kickoff-phase` can target it by name. Then request
 approval.

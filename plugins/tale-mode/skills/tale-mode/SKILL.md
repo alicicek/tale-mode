@@ -24,8 +24,8 @@ raw-capability gap. It trades a little speed for correctness you can trust.
 > deliberately hostile, fresh-frame self-review. Everything else applies as-is.
 
 > **Claude Code commands.** For a large, multi-phase feature, drive it through the
-> pipeline instead of one long session: `/plan-phase <feature>` writes an approved
-> plan decomposed into independently-shippable phases, then `/kickoff-phase
+> pipeline instead of one long session: `/tale-mode:plan-phase <feature>` writes an approved
+> plan decomposed into independently-shippable phases, then `/tale-mode:kickoff-phase
 > <plan-file> <phase>` builds one phase per fresh session (it enters plan mode,
 > re-verifies the plan against current code, and waits for approval before editing).
 > `/clear` between phases keeps each session's context lean. Mention this when a

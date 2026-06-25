@@ -3,7 +3,7 @@
 > **Status:** DESIGN — hash out §8, then build §9. Captured 2026-06-24 before a context reset.
 > **Home:** the tale-mode skill / repo (github.com/alicicek/tale-mode). **Everything here stays GENERAL** —
 > no project specifics; the only project-supplied input is a `check` command. Build it in a FRESH session
-> with this file as the spec (`/kickoff-phase` this doc).
+> with this file as the spec (`/tale-mode:kickoff-phase` this doc).
 >
 > **One-line goal:** make tale-mode keep going *autonomously and intelligently* until a verifiable goal is
 > met — driving its own diagnostics/fixes, refusing to circle or band-aid, pausing only for what genuinely
@@ -184,7 +184,7 @@ on Stop:
 ## 6. Use-case coverage (must work for all three)
 - **Simple feature:** goal = "feature works + its test passes." One short loop; analyzer rarely intervenes.
 - **Multi-phase feature / refactor:** each phase is its own armed goal (build → verify → next); the analyzer
-  catches regressions and band-aids between phases; pauses only for genuine forks. Pairs with `/kickoff-phase`.
+  catches regressions and band-aids between phases; pauses only for genuine forks. Pairs with `/tale-mode:kickoff-phase`.
 - **Debugging:** the headline case. Foundation-first + two-strike + the analyzer's circling/band-aid detection
   are exactly what kills the "spin 10×" and "temp-fix without checking architecture" failure modes.
 
@@ -207,7 +207,7 @@ on Stop:
    hook. Which is more robust + faster?
 3. **Circling detection:** pure LLM judgment, or LLM + a cheap heuristic (e.g. diff of consecutive attempts /
    repeated identical commands)?
-4. **Arming UX:** auto-arm inside `/kickoff-phase`/diagnosis, or an explicit lightweight step? Keep it 2 commands
+4. **Arming UX:** auto-arm inside `/tale-mode:kickoff-phase`/diagnosis, or an explicit lightweight step? Keep it 2 commands
    (no 3rd command) per project owner's preference — arming is a SKILL behavior, not a new command.
 5. **Relationship to native `/goal`:** complement (user can still `/goal` on top) or fully replace? Document both.
 6. **Headless:** does the goal-file+Stop-hook loop behave under `claude -p`? (Native `/goal` does; verify ours.)

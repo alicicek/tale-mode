@@ -183,8 +183,13 @@ plugin; there's nothing to wire up.
 - **Layer 2 — the governor** (default on): a **read-only** `type:"agent"` Stop hook pinned to
   **Sonnet** that, once the agent is *stuck* (≥ 2 rounds), reads the plan/code with a fresh
   adversarial frame and names the unverified foundation, a violated documented constraint,
-  or a band-aid — the failures the deterministic gate can't see. It self-exits cheaply on a
-  normal turn, so it doesn't tax ordinary work.
+  or a band-aid — the failures the deterministic gate can't see.
+
+  > **Cost note (honest):** because it's a `Stop` hook, L2 makes a small **Sonnet call on every
+  > turn-end** — even with no goal armed it spawns, finds no goal-file, and exits. So while the
+  > plugin is enabled it adds a little per-turn latency + token cost to *all* usage (L1, by
+  > contrast, is a free instant bash check). If you only want the free loop + the discipline,
+  > `/plugin disable tale-mode@tale-mode` turns the plugin off.
 
 **Longer loops.** Out of the box the loop stops after Claude Code's default **8 consecutive
 blocked turns** (a platform backstop) even if `max_rounds` is higher — a plugin can't change
