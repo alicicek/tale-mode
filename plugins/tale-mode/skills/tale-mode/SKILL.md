@@ -306,11 +306,12 @@ force a pass; that band-aid is the exact thing this system exists to prevent.
 **Arm it for** observable goals (a debug — "the repro passes"; a feature — "the test is green";
 a phase). Not pure-judgment goals (no deterministic check → nothing to gate on).
 
-**Layer 2 (the adversarial governor, default-on):** a `type:"agent"` Stop hook — a FRESH-CONTEXT,
-**read-only** reviewer (Read/Grep/Glob) pinned to Sonnet that, once you're stuck (`rounds` ≥ 2), reads
-the goal/plan/code with a skeptic's frame and names the unverified *foundation*, a violated *documented
-constraint*, or a *band-aid* — the failures Layer 1 can't see. It breaks the anchor (verified to fire in
-`-p`). Ships in the plugin's `hooks/hooks.json`; it self-exits cheaply on a normal turn.
+**Layer 2 (the adversarial governor — optional companion plugin):** a `type:"agent"` Stop hook —
+a FRESH-CONTEXT, **read-only** reviewer (Read/Grep/Glob) pinned to Sonnet that, once you're stuck
+(`rounds` ≥ 2), reads the goal/plan/code with a skeptic's frame and names the unverified *foundation*,
+a violated *documented constraint*, or a *band-aid* — the failures Layer 1 can't see. It breaks the
+anchor (verified to fire in `-p`). It ships as the **separate `tale-mode-governor` plugin** (it makes a
+per-turn model call, so it's opt-in): `/plugin install tale-mode-governor@tale-mode` to add it.
 
 **Live-test the runtime** (the script proves the hook's logic; only a live session proves Claude
 Code re-runs the turn on a block): arm `{"goal":"marker","check":"test -f /tmp/tale-done","rounds":0,"max_rounds":5}`,

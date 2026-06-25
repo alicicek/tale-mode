@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "tale-mode-governor",
+  "displayName": "Tale Mode — Governor",
+  "version": "1.0.0",
+  "description": "Optional companion to the tale-mode plugin: a read-only Sonnet \"governor\" that breaks anchoring when the autonomous goal loop gets stuck (>= 2 rounds). Adds a small per-turn model call — install only if you want it.",
+  "author": {
+    "name": "Ali Cicek",
+    "url": "https://github.com/alicicek"
+  },
+  "homepage": "https://github.com/alicicek/tale-mode",
+  "repository": "https://github.com/alicicek/tale-mode",
+  "license": "MIT",
+  "keywords": ["workflow", "stop-hook", "adversarial-review", "governor"],
+  "defaultEnabled": true,
+  "dependencies": ["tale-mode"]
+}

@@ -5,7 +5,7 @@
     "name": "Ali Cicek",
     "url": "https://github.com/alicicek"
   },
-  "description": "Tale Mode — a discipline plugin for complex/high-stakes work, plus a self-armed autonomous goal loop.",
+  "description": "Tale Mode — a discipline plugin for complex/high-stakes work, plus a self-armed autonomous goal loop (and an optional governor companion).",
   "metadata": {
     "pluginRoot": "./plugins"
   },
@@ -13,9 +13,16 @@
     {
       "name": "tale-mode",
       "source": "./plugins/tale-mode",
-      "description": "Discipline mode (staged planning, receipts, verify-against-source, adversarial review) + plan/kickoff commands + a plan-reviewer agent + a Stop-hook autonomous goal loop (L1 deterministic gate + L2 read-only Sonnet governor).",
+      "description": "Discipline mode (staged planning, receipts, verify-against-source, adversarial review) + plan/kickoff commands + a plan-reviewer agent + a free Stop-hook autonomous goal loop (Layer 1, a deterministic gate).",
       "category": "productivity",
       "keywords": ["workflow", "planning", "stop-hook", "autonomous-loop", "review"]
+    },
+    {
+      "name": "tale-mode-governor",
+      "source": "./plugins/tale-mode-governor",
+      "description": "Optional companion to tale-mode: the read-only Sonnet governor (Layer 2). Adds a per-turn model call — install only if you want anchor-breaking when the loop is stuck.",
+      "category": "productivity",
+      "keywords": ["workflow", "stop-hook", "governor"]
     }
   ]
 }
