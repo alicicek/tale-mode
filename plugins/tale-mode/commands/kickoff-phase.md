@@ -54,7 +54,10 @@ chunk behaves as intended and `/run` to boot and drive the live app, whenever th
 change is actually runnable (pick what fits: pure logic → `/verify` against a test;
 UI/API → `/run` + a real browser/curl pass). Self-critique; run the project's
 required `/code-review` on the diff plus `/security-review` for anything touching
-auth/money/secrets/storage (effort/scope per the project's CLAUDE.md). **Then close
+auth/money/secrets/storage (effort/scope per the project's CLAUDE.md). **These are
+bundled Claude Code skills — invoke them via the Skill tool (`/code-review
+<base>...<branch>` reviews the local diff, no PR needed); actually run them, don't
+substitute a hand-rolled review.** **Then close
 the review loop — never ship the fix delta unreviewed:** run tale-mode §5's
 *fresh-eyes* pass (a clean-context sub-agent — the `plan-reviewer` agent for
 high-stakes — or a `/clear`'d self-review, given only the diff + spec, framed as a
