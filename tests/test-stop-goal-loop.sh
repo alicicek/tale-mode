@@ -149,6 +149,12 @@ newwork; arm '{"goal":"g","check":"false","rounds":0,"max_rounds":25}'
 OUT=$(printf '{"session_id":"%s","cwd":"%s","stop_hook_active":false,"hook_event_name":"Stop"}' "$SID" "$WORK" \
       | TALE_VERDICT_LOG=//dev/stdout CLAUDE_PROJECT_DIR="$WORK" bash "$HOOK"); RC=$?
 ok "slash-variant //dev/stdout also guarded" '[ "$(printf "%s" "$OUT" | jq -s "length")" = "1" ]'
+# a leading-zero fd alias (/dev/fd/01) — macOS resolves it to fd1, so the guard must catch it too
+newwork; arm '{"goal":"g","check":"false","rounds":0,"max_rounds":25}'
+OUT=$(printf '{"session_id":"%s","cwd":"%s","stop_hook_active":false,"hook_event_name":"Stop"}' "$SID" "$WORK" \
+      | TALE_VERDICT_LOG=/dev/fd/01 CLAUDE_PROJECT_DIR="$WORK" bash "$HOOK"); RC=$?
+ok "exit 0"                              '[ "$RC" -eq 0 ]'
+ok "fd-alias /dev/fd/01 also guarded"    '[ "$(printf "%s" "$OUT" | jq -s "length")" = "1" ]'
 
 echo '20) hardening: a leading-zero STRING rounds ("08") must NOT crash $((...)) — read as base-10'
 newwork; arm '{"goal":"g","check":"false","rounds":"08","max_rounds":25}'

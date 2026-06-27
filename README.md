@@ -181,7 +181,7 @@ plugin; there's nothing to wire up.
   a deploy, a go/no-go — instead of grinding the impossible. **Silent (zero cost) until a
   goal is armed.** When armed, it appends one JSONL verdict line per round to a local
   `.claude/tale-mode.log` audit trail (disable with `TALE_VERDICT_LOG=/dev/null`).
-  62 tests cover the fail/pass/pause/edge/log paths.
+  64 tests cover the fail/pass/pause/edge/log paths.
 - **Layer 2 — the governor** (optional, *separate* plugin): a **read-only** `type:"agent"` Stop hook
   pinned to **Sonnet** that, once the agent is *stuck* (≥ 2 rounds), reads the plan/code with a fresh
   adversarial frame and names the unverified foundation, a violated documented constraint, or a

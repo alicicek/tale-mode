@@ -120,12 +120,15 @@ TAIL=$(printf '%s' "$OUT" | tail -c 1200)
 # then || true -> fully fail-open + silent. jq is guaranteed present (the hook exits-open above
 # otherwise). Durable cross-session audit (JSONL, one object/line); disable TALE_VERDICT_LOG=/dev/null.
 LOG="${TALE_VERDICT_LOG:-$ROOT/.claude/tale-mode.log}"
-# Never let the audit log resolve to the hook's OWN stdout (fd1) — that would interleave the
-# verdict JSON with the {"decision":...} object and break a parser reading stdout. Collapse
-# repeated/trailing slashes first so trivial aliases (//dev/stdout, /dev/fd//1, /dev/stdout/)
-# can't slip past the match. (fd2 is already neutralized by the group's 2>/dev/null below.)
+# Never let the audit log resolve to a process file descriptor — the hook's own stdout/stderr, or
+# ANY /dev/fd or /proc/<pid>/fd entry (incl. leading-zero forms like /dev/fd/01, which macOS still
+# resolves to fd1) — writing the verdict line there could interleave with the {"decision":...}
+# object on stdout. Collapse repeated/trailing slashes first so //dev/stdout, /dev/fd//1 etc. can't
+# slip past, then send ANY fd-device target to /dev/null. A real file path or /dev/null is unaffected.
 _lognorm=$(printf '%s' "$LOG" | tr -s '/'); _lognorm="${_lognorm%/}"
-case "$_lognorm" in /dev/stdout|/dev/fd/1|/proc/self/fd/1) LOG=/dev/null ;; esac
+case "$_lognorm" in
+  /dev/stdout|/dev/stderr|/dev/fd/*|/proc/self/fd/*|/proc/[0-9]*/fd/*) LOG=/dev/null ;;
+esac
 TS=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || true)
 { jq -cn --arg ts "$TS" --arg sid "$SID" --arg goal "$GOAL" --argjson round "$((ROUNDS+1))" \
          --arg check "$CHECK" --argjson rc "$RC" --arg tail "$TAIL" \
