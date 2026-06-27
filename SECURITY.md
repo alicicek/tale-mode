@@ -1,7 +1,7 @@
 # Security Policy
 
-Tale Mode is a Claude Code **plugin** — a set of Markdown instruction files, one small
-Stop-hook shell script, and JSON manifests. There's no server, no build step, and no runtime
+Tale Mode is a Claude Code **plugin** — a set of Markdown instruction files, two small hook
+shell scripts (a Stop gate plus a SessionStart discipline injector), and JSON manifests. There's no server, no build step, and no runtime
 service. But a plugin is loaded into an AI agent's context and can shape what the agent does,
 so its contents matter. This policy explains the threat model and how to report a problem.
 
@@ -16,6 +16,13 @@ The complete, reviewable surface (all under `plugins/tale-mode/`):
   default. It does nothing until the agent arms a `.claude/active-goal.json`; when armed it runs
   *that goal-file's `check` command* (a shell command the agent wrote in your repo) to decide
   whether to keep the turn going. No network access; bounded by `max_rounds` + a fail-open.
+- `hooks/session-start.sh` + `hooks/hooks.json` — the always-on **SessionStart hook**. On every
+  session start it prints a short, fixed reminder of the core disciplines (verify-against-source /
+  foundation-first / two-strike) for Claude to read. It reads no repo files, runs no project input,
+  makes no network calls, needs nothing beyond the ubiquitous `cat`, and always exits 0 — it can
+  never block.
+- `output-styles/tale-mode.md` — an **opt-in** output style (you select it via `/config`): plain
+  Markdown instructions that shape how Claude works, inert until you choose it.
 - `agents/plan-reviewer.md` — a subagent granted `Bash` + `WebFetch`. These run only when you
   invoke a review, under Claude Code's permission prompts.
 - `commands/plan-phase.md`, `commands/kickoff-phase.md` — slash-command prompt templates; no

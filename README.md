@@ -260,7 +260,7 @@ A plugin loads into your agent's context and, in Claude Code, runs with the same
 privileges you have — so "only install plugins you trust" is the right instinct (it's
 [Anthropic's own advice](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview)).
 The honest answer to "is this safe?" isn't *trust me* — it's *read it, it's tiny.* The whole
-plugin is plain Markdown, one ~110-line Stop-hook shell script, and small JSON manifests —
+plugin is plain Markdown, two small shell scripts (a Stop gate plus a tiny SessionStart injector), and small JSON manifests —
 a handful of files you can skim in a few minutes.
 
 **What it does / doesn't do**
@@ -288,7 +288,8 @@ a handful of files you can skim in a few minutes.
 
 **Read these before you trust it** (all under `plugins/tale-mode/`):
 `skills/tale-mode/SKILL.md` · `commands/plan-phase.md` · `commands/kickoff-phase.md` ·
-`agents/plan-reviewer.md` · `hooks/stop-goal-loop.sh` · `hooks/hooks.json`.
+`agents/plan-reviewer.md` · `hooks/stop-goal-loop.sh` · `hooks/session-start.sh` ·
+`hooks/hooks.json` · `output-styles/tale-mode.md`.
 
 Found a problem? See [`SECURITY.md`](SECURITY.md).
 
@@ -339,16 +340,19 @@ tale-mode/                                 (repo — also the plugin marketplace
 │   ├── autonomous-loop-design.md          #   design rationale + honest build log
 │   └── HOOKS.md                           #   optional deterministic typecheck/lint gates
 ├── tests/
-│   └── test-stop-goal-loop.sh             # 31 tests for the loop hook
+│   ├── test-stop-goal-loop.sh             # tests for the Stop loop hook
+│   └── test-session-start.sh              # tests for the SessionStart hook
 └── plugins/
     ├── tale-mode/                         # CORE plugin (free)
     │   ├── .claude-plugin/plugin.json     # metadata (defaultEnabled)
     │   ├── skills/tale-mode/SKILL.md      # the discipline (auto-activates on "tale mode")
     │   ├── commands/                      # /tale-mode:plan-phase · /tale-mode:kickoff-phase
     │   ├── agents/plan-reviewer.md        # the independent adversarial reviewer
-    │   └── hooks/
-    │       ├── hooks.json                 # wires the Stop hook: Layer 1 (the free loop)
-    │       └── stop-goal-loop.sh          # the self-armed goal loop (Layer 1)
+    │   ├── hooks/
+    │   │   ├── hooks.json                 # wires the Stop + SessionStart hooks (Layer 1)
+    │   │   ├── stop-goal-loop.sh          # the self-armed goal loop (Layer 1)
+    │   │   └── session-start.sh           # always-on discipline injection (SessionStart)
+    │   └── output-styles/tale-mode.md     # opt-in output style (selectable via /config)
     └── tale-mode-governor/                # OPTIONAL companion (per-turn Sonnet cost)
         ├── .claude-plugin/plugin.json     # metadata (depends on tale-mode)
         └── hooks/hooks.json               # Layer 2: the read-only Sonnet governor
