@@ -1,6 +1,17 @@
 {
-  "description": "tale-mode autonomous goal loop (Layer 1). Deterministic Stop gate (bash): keeps the turn going until an armed .claude/active-goal.json check passes; silent (and free) when no goal is armed. Bounded by the goal-file's max_rounds + a fail-open; no platform dependency. The optional Layer-2 Sonnet governor ships as a separate companion plugin: tale-mode-governor.",
+  "description": "tale-mode (Layer 1) — always-on discipline + autonomous goal loop. A SessionStart hook injects tale-mode's core disciplines (verify-against-source / foundation-first / two-strike) into every session as additive static text (overrides nothing). A deterministic Stop gate (bash) keeps the turn going until an armed .claude/active-goal.json check passes; silent (and free) when no goal is armed, bounded by the goal-file's max_rounds + a fail-open. The optional Layer-2 Sonnet governor ships as a separate companion plugin: tale-mode-governor.",
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/session-start.sh\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [

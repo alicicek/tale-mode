@@ -37,7 +37,11 @@ raw-capability gap. It trades a little speed for correctness you can trust.
 > change is actually runnable, picking what fits (pure logic → `/verify` against a
 > test; UI/API → `/run` + a real browser/curl pass). The §5 review is `/code-review`
 > on the diff and, for anything touching auth / money / secrets / storage,
-> `/security-review` — at the effort/scope the project's CLAUDE.md sets. A behavioral
+> `/security-review` — at the effort/scope the project's CLAUDE.md sets. **Both are
+> bundled Claude Code skills: invoke them yourself via the Skill tool (they're
+> model-invocable by default; `/code-review` reviews the *local* diff — pass
+> `<base>...<branch>`, no PR needed). Actually run them — they're the gate; the
+> fresh-eyes `plan-reviewer` complements them, never substitutes.** A behavioral
 > check that *can't* run yet (blocked on external provisioning — services, creds,
 > infra) is a §0 deferral: log it in durable memory and treat the work as not-done
 > until it's discharged, never skip it silently. On hosts without these commands, do
