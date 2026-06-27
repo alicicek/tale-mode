@@ -11,6 +11,7 @@ SID="s1testsession"   # a fixed, valid session id -> the scoped goal-file path t
 
 newwork() { WORK=$(mktemp -d); mkdir -p "$WORK/.claude"; }
 gf()      { echo "$WORK/.claude/active-goal.$SID.json"; }   # where the goal lives after the hook adopts it
+vlog()    { echo "$WORK/.claude/tale-mode.log"; }          # Phase B: where the per-round verdict log lands
 arm()     { printf '%s' "$1" > "$WORK/.claude/active-goal.json"; }   # the agent writes the SIMPLE path; the hook claims it
 run()     { OUT=$(printf '{"session_id":"%s","cwd":"%s","stop_hook_active":false,"hook_event_name":"Stop"}' "$SID" "$WORK" \
               | CLAUDE_PROJECT_DIR="$WORK" bash "$HOOK"); RC=$?; }   # pin ROOT to WORK (safe + deterministic)
@@ -106,6 +107,58 @@ touch -t 202001010000 "$WORK/.claude/active-goal.dead.json"
 OUT=$(printf '{"session_id":"live","cwd":"%s","stop_hook_active":false,"hook_event_name":"Stop"}' "$WORK" | CLAUDE_PROJECT_DIR="$WORK" bash "$HOOK"); RC=$?
 ok "stale foreign reaped"      '[ ! -f "$WORK/.claude/active-goal.dead.json" ]'
 ok "current goal kept"         '[ -f "$WORK/.claude/active-goal.live.json" ]'
+
+echo "16) Phase B: a FAILING round appends a JSONL verdict line (fail/round/rc/check)"
+newwork; arm '{"goal":"audit me","check":"echo boom; false","rounds":0,"max_rounds":25}'; run
+ok "decision=block"            'printf "%s" "$OUT" | jq -e ".decision==\"block\"" >/dev/null'
+ok "log written"               '[ -f "$(vlog)" ]'
+ok "last line is valid JSON"   'tail -n1 "$(vlog)" | jq -e . >/dev/null'
+ok "verdict=fail"              '[ "$(tail -n1 "$(vlog)" | jq -r .verdict)" = "fail" ]'
+ok "round=1 (ROUNDS+1)"        '[ "$(tail -n1 "$(vlog)" | jq -r .round)" = "1" ]'
+ok "rc nonzero"                '[ "$(tail -n1 "$(vlog)" | jq -r .rc)" != "0" ]'
+ok "check recorded verbatim"   '[ "$(tail -n1 "$(vlog)" | jq -r .check)" = "echo boom; false" ]'
+
+echo "17) Phase B: a PASSING round appends a JSONL verdict line (pass) + the goal still clears"
+newwork; arm '{"goal":"audit me","check":"true","rounds":2,"max_rounds":25}'; run
+ok "NOT blocking"              '! printf "%s" "$OUT" | jq -e ".decision==\"block\"" >/dev/null 2>&1'
+ok "goal-file cleared"         '[ ! -f "$(gf)" ]'
+ok "log written"               '[ -f "$(vlog)" ]'
+ok "verdict=pass"              '[ "$(tail -n1 "$(vlog)" | jq -r .verdict)" = "pass" ]'
+ok "round=3 (ROUNDS+1)"        '[ "$(tail -n1 "$(vlog)" | jq -r .round)" = "3" ]'
+
+echo "18) Phase B: verdict-log write FAILS (unwritable path) -> decision UNCHANGED, rounds++, stderr silent (leak guard)"
+newwork; arm '{"goal":"g","check":"false","rounds":0,"max_rounds":25}'
+OUT=$(printf '{"session_id":"%s","cwd":"%s","stop_hook_active":false,"hook_event_name":"Stop"}' "$SID" "$WORK" \
+      | TALE_VERDICT_LOG="$WORK/nope/tale.log" CLAUDE_PROJECT_DIR="$WORK" bash "$HOOK" 2>"$WORK/err.txt"); RC=$?
+ERR=$(cat "$WORK/err.txt")
+ok "exit 0"                    '[ "$RC" -eq 0 ]'
+ok "still blocks (decision unchanged)" 'printf "%s" "$OUT" | jq -e ".decision==\"block\"" >/dev/null'
+ok "rounds still incremented"  '[ "$(jq -r .rounds "$(gf)")" = "1" ]'
+ok "stderr silent (the leak guard)"    '[ -z "$ERR" ]'
+ok "default log NOT written"   '[ ! -f "$(vlog)" ]'
+
+echo "19) Phase B: TALE_VERDICT_LOG stdout-aliases must NOT pollute the decision stdout (purity guard)"
+newwork; arm '{"goal":"g","check":"false","rounds":0,"max_rounds":25}'
+OUT=$(printf '{"session_id":"%s","cwd":"%s","stop_hook_active":false,"hook_event_name":"Stop"}' "$SID" "$WORK" \
+      | TALE_VERDICT_LOG=/dev/stdout CLAUDE_PROJECT_DIR="$WORK" bash "$HOOK"); RC=$?
+ok "exit 0"                    '[ "$RC" -eq 0 ]'
+ok "stdout is exactly ONE JSON object" '[ "$(printf "%s" "$OUT" | jq -s "length")" = "1" ]'
+ok "that one object is the decision"   'printf "%s" "$OUT" | jq -e ".decision==\"block\"" >/dev/null'
+# a slash-variant alias (//dev/stdout) must ALSO be guarded — exact-string match alone would leak it
+newwork; arm '{"goal":"g","check":"false","rounds":0,"max_rounds":25}'
+OUT=$(printf '{"session_id":"%s","cwd":"%s","stop_hook_active":false,"hook_event_name":"Stop"}' "$SID" "$WORK" \
+      | TALE_VERDICT_LOG=//dev/stdout CLAUDE_PROJECT_DIR="$WORK" bash "$HOOK"); RC=$?
+ok "slash-variant //dev/stdout also guarded" '[ "$(printf "%s" "$OUT" | jq -s "length")" = "1" ]'
+
+echo '20) hardening: a leading-zero STRING rounds ("08") must NOT crash $((...)) — read as base-10'
+newwork; arm '{"goal":"g","check":"false","rounds":"08","max_rounds":25}'
+OUT=$(printf '{"session_id":"%s","cwd":"%s","stop_hook_active":false,"hook_event_name":"Stop"}' "$SID" "$WORK" \
+      | CLAUDE_PROJECT_DIR="$WORK" bash "$HOOK" 2>"$WORK/err.txt"); RC=$?
+ERR=$(cat "$WORK/err.txt")
+ok "exit 0 (no crash)"         '[ "$RC" -eq 0 ]'
+ok "decision=block (emitted)"  'printf "%s" "$OUT" | jq -e ".decision==\"block\"" >/dev/null'
+ok "stderr silent (no octal error)"   '[ -z "$ERR" ]'
+ok "rounds advanced 8 -> 9 (base-10, not octal/string)" '[ "$(jq -r .rounds "$(gf)")" = "9" ]'
 
 echo
 echo "RESULT: $PASS passed, $FAIL failed"

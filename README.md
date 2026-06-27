@@ -179,7 +179,9 @@ plugin; there's nothing to wire up.
   goal clears. It can't run forever (`max_rounds` + a fail-open if it can't persist state),
   and it **pauses for you** (`needs_user`) when it hits something only you can do — a secret,
   a deploy, a go/no-go — instead of grinding the impossible. **Silent (zero cost) until a
-  goal is armed.** 31 tests cover the fail/pass/pause/edge paths.
+  goal is armed.** When armed, it appends one JSONL verdict line per round to a local
+  `.claude/tale-mode.log` audit trail (disable with `TALE_VERDICT_LOG=/dev/null`).
+  62 tests cover the fail/pass/pause/edge/log paths.
 - **Layer 2 — the governor** (optional, *separate* plugin): a **read-only** `type:"agent"` Stop hook
   pinned to **Sonnet** that, once the agent is *stuck* (≥ 2 rounds), reads the plan/code with a fresh
   adversarial frame and names the unverified foundation, a violated documented constraint, or a
@@ -280,7 +282,7 @@ a handful of files you can skim in a few minutes.
      goal-file's `check` command* — a shell command the agent wrote in your repo — to decide
      whether to keep going. Read
      [`plugins/tale-mode/hooks/stop-goal-loop.sh`](plugins/tale-mode/hooks/stop-goal-loop.sh)
-     (~110 lines) so you know exactly what runs and when.
+     (~160 lines) so you know exactly what runs and when.
   3. the **Layer-2 governor** is a **read-only** (`Read`/`Grep`/`Glob`) Sonnet hook — it can
      read your code to spot an anchor, but cannot run shell or write files.
 - It never asks Claude to read secrets, weaken security, or run destructive commands. The
