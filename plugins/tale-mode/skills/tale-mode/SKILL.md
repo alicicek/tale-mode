@@ -86,7 +86,8 @@ proper implementation now. A v1 / MVP / stub is justified only when the full
 version genuinely *can't* be built yet — a missing prerequisite, a separate
 high-stakes surface that deserves its own review (e.g. a money path), or it won't
 fit the session — never just because it's faster. And a deferral only counts once
-it's written to durable memory (§7) as a named, owned item: a gap you merely say
+it's written to durable memory (§7, e.g. the committed `.claude/deferrals.json`) as a
+named, owned item: a gap you merely say
 out loud (§8) dies on session reset — the next run starts clean and never sees it.
 Test before deferring: *if this session ended now, would this still get picked up?*
 If no — do it now, or write it into the plan first. (Doing it properly means not
@@ -274,6 +275,16 @@ deferred item (§0) and open gap (§8)**, and anything that drifted. Re-read it 
 you resume — and reconcile the deferral list, confirming nothing silently fell
 through. The conversation is not durable memory; the file is.
 
+**Deferrals get a committed, reviewable home — `.claude/deferrals.json`.** A deferral
+kept only in a scratch note dies unreviewed; record each as a *committed*, structured
+entry so it surfaces in the PR diff where a reviewer actually sees it:
+`{ "deferrals": [ { "id", "what", "why", "owner", "created", "status" } ] }`
+(`status ∈ {open, discharged}`; *discharge* = promote it back to active work). This is the
+structured, PR-visible companion to the narrative progress file above — not a second source
+of truth. It is a **convention, not an enforced gate**: no hook reads it (a shell check
+can't decide "is this scope item built?"), so no-silent-drops stays *your* discipline
+(here and §8) — write the deferral, or it didn't happen.
+
 ### 8. Surface gaps honestly
 Name what you did NOT do, what you could not verify (and what a cheap proxy didn't
 cover), and what's out of scope. "Known-untestable" and "out-of-scope" sections
@@ -294,8 +305,8 @@ and this loop does not depend on `/goal`.
 **Setup:** none — the Stop hook ships *inside* the tale-mode Claude Code plugin and is registered
 automatically on install (default-on). For loops longer than ~8 rounds, raise
 `CLAUDE_CODE_STOP_HOOK_BLOCK_CAP` in `~/.claude/settings.json` (the loop is safe without it —
-`max_rounds` + a fail-open are self-contained). Proven: 31 checks across 12 cases
-(fail/pass/pause/edge) in `tests/test-stop-goal-loop.sh`.
+`max_rounds` + a fail-open are self-contained). Proven: 62 checks across 20 cases
+(fail/pass/pause/edge/log) in `tests/test-stop-goal-loop.sh`.
 
 **Arm a goal** — write `<project>/.claude/active-goal.json` when you start a hard,
 *observably-verifiable* task:

@@ -1,0 +1,4 @@
+# tale-mode runtime artifacts (per-session loop state + audit log) — never commit these.
+# deferrals.json is intentionally NOT ignored: it is the committed, PR-reviewed deferral record.
+/.claude/tale-mode.log
+/.claude/active-goal*.json

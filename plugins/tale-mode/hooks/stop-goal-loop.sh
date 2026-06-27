@@ -14,6 +14,11 @@
 #                    disciplines injected as the reason. rounds++ each time.
 #   max_rounds    -> give up cleanly (clear + tell the user); never loop forever.
 #
+#   OBSERVABILITY: on each round where the `check` actually runs, append one JSONL verdict
+#   line (ts, session, goal, round, check, verdict, rc, output tail) to <project>/.claude/
+#   tale-mode.log — a durable, local, cross-session audit trail. Pure side-effect, fully
+#   fail-open (never affects the decision), no network. Disable with TALE_VERDICT_LOG=/dev/null.
+#
 # CONTRACT (verified against code.claude.com/docs/en/hooks):
 #   Stop blocks via  exit 0 + {"decision":"block","reason":"..."} on stdout; allows via
 #   exit 0 with no decision. The SELF-CONTAINED safeties are (1) the per-goal `max_rounds`
@@ -73,6 +78,11 @@ MAX=$(jq -r '.max_rounds // 25'   "$GOAL_FILE" 2>/dev/null || echo 25)
 NEEDS_USER=$(jq -r '.needs_user // ""' "$GOAL_FILE" 2>/dev/null || true)
 case "$ROUNDS" in (*[!0-9]*|'') ROUNDS=0 ;; esac
 case "$MAX"    in (*[!0-9]*|'') MAX=25 ;; esac
+# Force base-10: jq emits "08"/"09" if the goal-file carries a STRING "rounds" — all-digits, so it
+# passes the sanitizer above, but a later $((08+1)) would abort as an invalid octal literal (no
+# decision emitted, goal-file orphaned). 10# makes it decimal. (Sanitizer guarantees non-empty
+# digits, so this never errors.) Behavior is identical for every normal integer value.
+ROUNDS=$((10#$ROUNDS)); MAX=$((10#$MAX))
 
 # No USABLE check (empty OR whitespace/blank-only) -> disarm + allow. A blank check would
 # otherwise run as a shell no-op (RC 0) and report a FALSE "goal met", silently disarming.
@@ -101,6 +111,27 @@ fi
 TO=""; command -v timeout >/dev/null 2>&1 && TO="timeout ${TALE_CHECK_TIMEOUT:-120}"
 OUT=$( cd "$ROOT" 2>/dev/null && $TO bash -c "$CHECK" 2>&1 ); RC=$?
 TAIL=$(printf '%s' "$OUT" | tail -c 1200)
+
+# --- Phase B: per-round verdict audit log — pure side-effect, MUST NOT affect the decision ---
+# Reached only on the check-execution path (past the no-ROOT / no-goal / no-jq early-exits above),
+# so RC, TAIL, ROUNDS, GOAL, CHECK, SID are all in scope. The decision below reads the STORED $RC
+# (not $?), so nothing here can perturb it. The { } group routes BOTH jq's stderr AND any
+# redirect-OPEN failure (read-only/locked .claude) to /dev/null *before* the >> is attempted;
+# then || true -> fully fail-open + silent. jq is guaranteed present (the hook exits-open above
+# otherwise). Durable cross-session audit (JSONL, one object/line); disable TALE_VERDICT_LOG=/dev/null.
+LOG="${TALE_VERDICT_LOG:-$ROOT/.claude/tale-mode.log}"
+# Never let the audit log resolve to the hook's OWN stdout (fd1) — that would interleave the
+# verdict JSON with the {"decision":...} object and break a parser reading stdout. Collapse
+# repeated/trailing slashes first so trivial aliases (//dev/stdout, /dev/fd//1, /dev/stdout/)
+# can't slip past the match. (fd2 is already neutralized by the group's 2>/dev/null below.)
+_lognorm=$(printf '%s' "$LOG" | tr -s '/'); _lognorm="${_lognorm%/}"
+case "$_lognorm" in /dev/stdout|/dev/fd/1|/proc/self/fd/1) LOG=/dev/null ;; esac
+TS=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || true)
+{ jq -cn --arg ts "$TS" --arg sid "$SID" --arg goal "$GOAL" --argjson round "$((ROUNDS+1))" \
+         --arg check "$CHECK" --argjson rc "$RC" --arg tail "$TAIL" \
+   '{ts:$ts,session:$sid,goal:$goal,round:$round,check:$check,verdict:(if $rc==0 then "pass" else "fail" end),rc:$rc,tail:$tail}' \
+   >> "$LOG"; } 2>/dev/null || true
+# --- end Phase B audit log ---
 
 if [ "$RC" -eq 0 ]; then
   rm -f "$GOAL_FILE"

@@ -15,7 +15,12 @@ The complete, reviewable surface (all under `plugins/tale-mode/`):
 - `hooks/stop-goal-loop.sh` + `hooks/hooks.json` — the autonomous-loop **Stop hook**, on by
   default. It does nothing until the agent arms a `.claude/active-goal.json`; when armed it runs
   *that goal-file's `check` command* (a shell command the agent wrote in your repo) to decide
-  whether to keep the turn going. No network access; bounded by `max_rounds` + a fail-open.
+  whether to keep the turn going, and appends one JSONL verdict line per round to a local
+  `.claude/tale-mode.log` runtime audit file (the `check` command + its last-1200-byte output
+  tail — the fail-round tail is also shown to the agent, the pass-round tail is logged only, so
+  keep `check`s free of secrets since their output is now persisted at rest locally). No network
+  access; same local trust boundary as the goal-file write; disable with `TALE_VERDICT_LOG=/dev/null`.
+  Bounded by `max_rounds` + a fail-open.
 - `hooks/session-start.sh` + `hooks/hooks.json` — the always-on **SessionStart hook**. On every
   session start it prints a short, fixed reminder of the core disciplines (verify-against-source /
   foundation-first / two-strike) for Claude to read. It reads no repo files, runs no project input,
