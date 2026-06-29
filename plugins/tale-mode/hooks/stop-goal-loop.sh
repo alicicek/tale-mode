@@ -155,7 +155,7 @@ if [ -n "$PHASE_FILE" ] && [ -f "$PHASE_FILE" ] && command -v jq >/dev/null 2>&1
         PR=$((10#$PR)); PMAX=$((10#$PMAX))
         if [ "$PR" -ge "$PMAX" ]; then
           rm -f "$PHASE_FILE" 2>/dev/null || true
-          jq -n --arg n "$PR" '{systemMessage: ("tale-mode phase loop: hit max_rounds (" + $n + ") with committed gates still red. Stopped enforcing — fix and re-run /tale-mode:kickoff-phase, or take over.")}'
+          jq -n --arg n "$PMAX" '{systemMessage: ("tale-mode phase loop: hit max_rounds (" + $n + ") with committed gates still red. Stopped enforcing — fix and re-run /tale-mode:kickoff-phase, or take over.")}'
           exit 0
         fi
 
@@ -250,7 +250,7 @@ if [ -n "$NEEDS_USER" ] && [ "$NEEDS_USER" != "null" ]; then exit 0; fi
 # Hard ceiling -> give up cleanly. The agent can re-arm if it judges it worthwhile.
 if [ "$ROUNDS" -ge "$MAX" ]; then
   rm -f "$GOAL_FILE"
-  jq -n --arg g "$GOAL" --arg n "$ROUNDS" \
+  jq -n --arg g "$GOAL" --arg n "$MAX" \
     '{systemMessage: ("tale-mode goal loop: hit max_rounds (" + $n + ") without meeting — " + $g + ". Stopped; re-arm or take over.")}'
   exit 0
 fi

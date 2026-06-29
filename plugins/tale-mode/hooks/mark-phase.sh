@@ -62,8 +62,14 @@ if [ ! -f "$MARKER" ]; then
   case "$MR" in (''|*[!0-9]*) MR=50 ;; esac
   TS=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || true)
   mkdir -p "$ROOT/.claude" 2>/dev/null || true
-  { jq -cn --arg s "$SID" --arg ts "$TS" --argjson mr "$MR" \
-      '{session:$s, started:$ts, rounds:0, max_rounds:$mr, needs_user:null}' > "$MARKER"; } 2>/dev/null || true
+  # Atomic create: write to a temp file, then rename. A direct redirect could leave an empty/
+  # truncated marker if jq is interrupted mid-write — and since this hook only (re)creates when
+  # the marker is ABSENT, a re-kickoff would never overwrite the corrupt file. Mirrors the
+  # mktemp+mv persist pattern in stop-goal-loop.sh.
+  MTMP=$(mktemp 2>/dev/null || echo "$MARKER.tmp")
+  if jq -cn --arg s "$SID" --arg ts "$TS" --argjson mr "$MR" \
+      '{session:$s, started:$ts, rounds:0, max_rounds:$mr, needs_user:null}' > "$MTMP" 2>/dev/null \
+      && mv "$MTMP" "$MARKER" 2>/dev/null; then :; else rm -f "$MTMP" 2>/dev/null || true; fi
 fi
 
 exit 0
