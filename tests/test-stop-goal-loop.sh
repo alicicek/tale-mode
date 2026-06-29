@@ -318,12 +318,31 @@ ok "exit 0"                       '[ "$RC" -eq 0 ]'
 ok "NOT blocking (bad cwd rejected)" '! printf "%s" "$OUT" | jq -e ".decision==\"block\"" >/dev/null 2>&1'
 
 echo "42) CC precedence: CLAUDE_PROJECT_DIR set WINS even with opt-in on (payload cwd ignored)"
-newwork; arm '{"goal":"g","check":"false","rounds":0,"max_rounds":25}'; BOGUS=$(mktemp -d)
+newwork; arm '{"goal":"g","check":"false","rounds":0,"max_rounds":25}'; BOGUS=$(mktemp -d); mkdir -p "$BOGUS/.claude"
+# Plant a TRAP goal under the payload cwd. If the cwd were (wrongly) adopted as root, the hook would
+# claim THIS file (mv it to the scoped path) and its check:"true" would pass -> clear -> NO block.
+# So a block from WORK + this trap surviving untouched (still at the legacy path, rounds==0) together
+# prove CLAUDE_PROJECT_DIR won, not the cwd. (The old '! -d $BOGUS/.claude' check passed vacuously.)
+printf '%s' '{"goal":"trap","check":"true","rounds":0,"max_rounds":25}' > "$BOGUS/.claude/active-goal.json"
 OUT=$(printf '{"session_id":"%s","cwd":"%s","stop_hook_active":false,"hook_event_name":"Stop"}' "$SID" "$BOGUS" | CLAUDE_PROJECT_DIR="$WORK" TALE_ALLOW_CWD_ROOT=1 bash "$HOOK"); RC=$?
 ok "decision=block"               'printf "%s" "$OUT" | jq -e ".decision==\"block\"" >/dev/null'
 ok "armed against CLAUDE_PROJECT_DIR (rounds in WORK)" '[ "$(jq -r .rounds "$(gf)")" = "1" ]'
-ok "payload cwd NOT used as root" '[ ! -d "$BOGUS/.claude" ]'
-rmdir "$BOGUS" 2>/dev/null || true
+ok "payload-cwd trap left untouched (cwd ignored)" '[ "$(jq -r .rounds "$BOGUS/.claude/active-goal.json")" = "0" ]'
+rm -rf "$BOGUS"
+
+echo "43) Codex shape + opt-in ON but jq ABSENT -> fail-open no-op (the jq guard on the cwd-root branch must hold)"
+# The cwd-root branch is gated on 'command -v jq'; without it the branch must be SKIPPED, leaving
+# ROOT empty so the hook exits 0 silently. Run with a PATH that has NO jq (symlink only bash+cat into
+# a temp bin) to lock that invariant: if a refactor ever parsed cwd without jq while dropping this
+# guard, the armed goal below would be adopted under the cwd and trap the turn -> these asserts fire.
+newwork; arm '{"goal":"g","check":"false","rounds":0,"max_rounds":25}'
+NOJQ=$(mktemp -d); for _b in bash cat; do ln -s "$(command -v "$_b")" "$NOJQ/$_b"; done
+OUT=$(printf '{"session_id":"%s","cwd":"%s","stop_hook_active":false,"hook_event_name":"Stop"}' "$SID" "$WORK" \
+        | env -u CLAUDE_PROJECT_DIR TALE_ALLOW_CWD_ROOT=1 PATH="$NOJQ" bash "$HOOK"); RC=$?
+ok "exit 0"                            '[ "$RC" -eq 0 ]'
+ok "silent no-op (no cwd-root, no block)" '[ -z "$OUT" ]'
+ok "armed goal NOT claimed under cwd"     '[ ! -f "$(gf)" ]'
+rm -rf "$NOJQ"
 
 echo
 echo "RESULT: $PASS passed, $FAIL failed"
