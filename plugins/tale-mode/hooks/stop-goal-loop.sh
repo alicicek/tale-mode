@@ -37,10 +37,28 @@ set -uo pipefail
 
 INPUT=$(cat 2>/dev/null || true)
 
-# Project root MUST come from CLAUDE_PROJECT_DIR (Claude Code sets it for hooks). We do
-# NOT fall back to the hook input's cwd for a BLOCKING decision: a stray/sibling
-# .claude/active-goal.json under an agent-controlled cwd must never trap an unrelated turn.
+# Project root. Claude Code exports CLAUDE_PROJECT_DIR for hooks; we anchor on it because it is the
+# TRUSTED project root and is NOT agent-controllable. By default we do NOT fall back to the hook
+# input's cwd for a BLOCKING decision: a stray/sibling .claude/active-goal.json under an
+# agent-controlled cwd must never trap an unrelated turn.
+#
+# Cross-runtime (e.g. OpenAI Codex) does NOT export CLAUDE_PROJECT_DIR, so the only project-root
+# signal there is the stdin `cwd`. To preserve the no-cwd-trap guarantee, that fallback stays OFF
+# unless the USER opts in for this runtime via TALE_ALLOW_CWD_ROOT=1 (set in the host's env config,
+# e.g. Codex's [shell_environment_policy.set]). It is a USER grant, not an agent one: the hook's env
+# comes from the host, not the agent's transient shell, so the agent still cannot authorize its own
+# enforcement. With the var unset, the path below is byte-identical to v1 (CLAUDE_PROJECT_DIR or
+# nothing). Enable it only after confirming on that runtime that the Stop-payload `cwd` is the
+# stable workspace root (docs/cross-platform-plan.md, Phase D-core smoke). We accept only an
+# absolute, existing directory, so a relative/empty/garbage cwd can never resolve to a root.
 ROOT="${CLAUDE_PROJECT_DIR:-}"
+if [ -z "$ROOT" ] && [ "${TALE_ALLOW_CWD_ROOT:-}" = "1" ] && command -v jq >/dev/null 2>&1; then
+  ROOT=$(printf '%s' "$INPUT" | jq -r '.cwd // ""' 2>/dev/null || true)
+  case "$ROOT" in
+    /*) [ -d "$ROOT" ] || ROOT="" ;;
+    *)  ROOT="" ;;
+  esac
+fi
 [ -n "$ROOT" ] || exit 0
 # Session-scope the goal-file: a goal armed by one session must never trap another in the same
 # repo (a crashed/previous session leaves its file; per-session keying means we only ever read
