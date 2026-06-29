@@ -305,8 +305,8 @@ and this loop does not depend on `/goal`.
 **Setup:** none — the Stop hook ships *inside* the tale-mode Claude Code plugin and is registered
 automatically on install (default-on). For loops longer than ~8 rounds, raise
 `CLAUDE_CODE_STOP_HOOK_BLOCK_CAP` in `~/.claude/settings.json` (the loop is safe without it —
-`max_rounds` + a fail-open are self-contained). Proven: 64 checks across 20 cases
-(fail/pass/pause/edge/log) in `tests/test-stop-goal-loop.sh`.
+`max_rounds` + a fail-open are self-contained). Proven: 107 checks across 38 cases
+(fail/pass/pause/edge/log + committed-config) in `tests/test-stop-goal-loop.sh`.
 
 **Arm a goal** — write `<project>/.claude/active-goal.json` when you start a hard,
 *observably-verifiable* task:

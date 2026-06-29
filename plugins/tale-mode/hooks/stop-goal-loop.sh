@@ -66,6 +66,155 @@ else
   GOAL_FILE="$ROOT/.claude/active-goal.json"
 fi
 
+# ============================================================================
+# Phase C — committed-config phase auto-arm (gated). This ENTIRE block is skipped unless a
+# session-scoped phase marker exists, so a normal turn's decision path is byte-identical to v1
+# (Invariant 5). When a DELIBERATE build phase is active for THIS session (the
+# /tale-mode:kickoff-phase UserPromptExpansion hook wrote .claude/tale-mode.phase.$SID.json)
+# AND the repo ships a .claude/tale-mode.json whose content-hash you've TRUSTED AND the working
+# tree is dirty, the loop arms ITSELF on that committed config's `gates` — no agent memory, so it
+# can't be forgotten. The committed gates are checked FIRST and block independently, so an ad-hoc
+# goal-file (below) may ADD a gate but can NEVER suppress a committed one. `needs_user` still pauses.
+# ============================================================================
+PHASE_FILE=""
+[ -n "$SID" ] && PHASE_FILE="$ROOT/.claude/tale-mode.phase.$SID.json"
+if [ -n "$PHASE_FILE" ] && [ -f "$PHASE_FILE" ] && command -v jq >/dev/null 2>&1; then
+  # sha256 of a file's content -> bare hex (empty if no hashing tool is available).
+  _sha256() {
+    if   command -v sha256sum >/dev/null 2>&1; then sha256sum    < "$1" 2>/dev/null | awk '{print $1; exit}'
+    elif command -v shasum    >/dev/null 2>&1; then shasum -a 256 < "$1" 2>/dev/null | awk '{print $1; exit}'
+    elif command -v openssl   >/dev/null 2>&1; then openssl dgst -sha256 < "$1" 2>/dev/null | awk '{print $NF; exit}'
+    fi
+  }
+  # 0 (trusted) iff the file's content-hash is listed in the user-local trust store. The hook only
+  # ever READS this store; granting trust is a manual USER action (see the untrusted notice below) —
+  # the hook and the agent never write it, else a malicious repo could self-trust. No hashing tool /
+  # no store / not listed -> NOT trusted -> the gates do not run (fail-safe).
+  _hash_trusted() {
+    local f="$1" store h
+    store="${TALE_TRUST_STORE:-${HOME:-}/.claude/tale-mode-trust}"
+    h=$(_sha256 "$f"); [ -n "$h" ] || return 1
+    [ -f "$store" ] || return 1
+    grep -qE "^${h}([[:space:]]|\$)" "$store" 2>/dev/null
+  }
+  # 0 (dirty) iff the repo has uncommitted changes, EXCLUDING the hook's own runtime files (phase
+  # markers + the verdict log + the goal-files) via git pathspecs — NOT the consumer's .gitignore,
+  # which we can't assume carries our entries. .claude/deferrals.json is committed work and is
+  # deliberately NOT excluded. No git / not a repo -> treated as not-dirty (fail-open: don't enforce)
+  # so the loop can never trap on an undecidable dirtiness check.
+  _repo_dirty() {
+    command -v git >/dev/null 2>&1 || return 1
+    local out
+    out=$(git -C "$1" status --porcelain --untracked-files=normal -- . \
+          ':(exclude).claude/tale-mode.phase.*.json' \
+          ':(exclude).claude/tale-mode.log' \
+          ':(exclude).claude/active-goal*.json' 2>/dev/null) || return 1
+    [ -n "$out" ]
+  }
+  # Append one fail-safe JSONL verdict line for a committed-gate BLOCK round to the same audit log as
+  # the goal-file path (so .claude/tale-mode.log covers committed enforcement too). Pure side-effect —
+  # MUST NOT affect the decision: the { } group routes jq's stderr AND any redirect-open failure to
+  # /dev/null before >>, then || true. The fd-guard collapses slashes and sends any process-fd target
+  # to /dev/null so the line can't interleave with the decision on stdout.
+  _plog() {
+    local log ln
+    log="${TALE_VERDICT_LOG:-$ROOT/.claude/tale-mode.log}"
+    ln=$(printf '%s' "$log" | tr -s '/'); ln="${ln%/}"
+    case "$ln" in /dev/stdout|/dev/stderr|/dev/fd/*|/proc/self/fd/*|/proc/[0-9]*/fd/*) log=/dev/null ;; esac
+    { jq -cn --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || true)" --arg sid "$1" \
+        --argjson round "$2" --arg check "$3" --argjson rc "$4" --arg tail "$5" \
+        '{ts:$ts,session:$sid,kind:"phase-gate",round:$round,check:$check,verdict:"fail",rc:$rc,tail:$tail}' \
+      >> "$log"; } 2>/dev/null || true
+  }
+
+  # Marker hygiene: refresh OUR marker's mtime so the reap can't claim a live phase, then reap stale
+  # FOREIGN phase markers (a crashed session never clears its own). Crash backstop only (~24h,
+  # distinct from the per-round goal TTL) — never ours, never within the window. Digit-sanitize the
+  # TTL override so a non-numeric value can't break the find -mmin expression.
+  _TTL="${TALE_PHASE_TTL_MIN:-1440}"; case "$_TTL" in (*[!0-9]*|'') _TTL=1440 ;; esac
+  touch "$PHASE_FILE" 2>/dev/null || true
+  command -v find >/dev/null 2>&1 && find "$ROOT/.claude" -maxdepth 1 -type f \
+    -name 'tale-mode.phase.*.json' ! -name "tale-mode.phase.$SID.json" \
+    -mmin +"$_TTL" -delete 2>/dev/null
+
+  CFG="$ROOT/.claude/tale-mode.json"
+  if [ -f "$CFG" ]; then
+    if _hash_trusted "$CFG"; then
+      if _repo_dirty "$ROOT"; then
+        # --- committed-config enforcement is LIVE for this turn ---
+        # needs_user pause (D1 / Invariant 2): allow THIS stop so the agent can ask the human, but
+        # KEEP the marker + gates (re-checked next turn). The agent clears needs_user to resume.
+        PNU=$(jq -r '.needs_user // ""' "$PHASE_FILE" 2>/dev/null || true)
+        if [ -n "$PNU" ] && [ "$PNU" != "null" ]; then exit 0; fi
+
+        # Hard ceiling -> give up cleanly: disarm the phase (delete marker) and tell the user.
+        PR=$(jq -r '.rounds // 0'        "$PHASE_FILE" 2>/dev/null || echo 0)
+        PMAX=$(jq -r '.max_rounds // 50' "$PHASE_FILE" 2>/dev/null || echo 50)
+        case "$PR"   in (*[!0-9]*|'') PR=0 ;; esac
+        case "$PMAX" in (*[!0-9]*|'') PMAX=50 ;; esac
+        PR=$((10#$PR)); PMAX=$((10#$PMAX))
+        if [ "$PR" -ge "$PMAX" ]; then
+          rm -f "$PHASE_FILE" 2>/dev/null || true
+          jq -n --arg n "$PR" '{systemMessage: ("tale-mode phase loop: hit max_rounds (" + $n + ") with committed gates still red. Stopped enforcing — fix and re-run /tale-mode:kickoff-phase, or take over.")}'
+          exit 0
+        fi
+
+        # Run the committed gates IN ORDER; block on the FIRST red one. Same exec model as the
+        # goal-file `check`: arbitrary (trusted) shell from the project root, optional timeout. Each
+        # gate is ONE shell command (a multi-line JSON value would split on newlines). The gate runs
+        # with stdin from /dev/null so a gate that reads stdin (a test runner, `cat`, `read`) cannot
+        # drain the gate-list pipe and silently skip the gates after it.
+        TO=""; command -v timeout >/dev/null 2>&1 && TO="timeout ${TALE_CHECK_TIMEOUT:-120}"
+        GATE_FAIL=""; GATE_RC=0; GATE_OUT=""
+        while IFS= read -r _gate; do
+          [ -n "$_gate" ] || continue
+          _out=$( cd "$ROOT" 2>/dev/null && $TO bash -c "$_gate" </dev/null 2>&1 ); _rc=$?
+          if [ "$_rc" -ne 0 ]; then GATE_FAIL="$_gate"; GATE_RC=$_rc; GATE_OUT="$_out"; break; fi
+        done < <(jq -r '.gates[]?' "$CFG" 2>/dev/null)
+
+        if [ -n "$GATE_FAIL" ]; then
+          GTAIL=$(printf '%s' "$GATE_OUT" | tail -c 1200)
+          # Advance the phase round counter (fail-open: if we cannot PERSIST it, allow the stop — a
+          # frozen counter would never reach max_rounds and would trap the session forever).
+          PNEXT=$((PR + 1))
+          PTMP=$(mktemp 2>/dev/null || echo "$PHASE_FILE.tmp")
+          if jq --argjson r "$PNEXT" '.rounds=$r' "$PHASE_FILE" > "$PTMP" 2>/dev/null && mv "$PTMP" "$PHASE_FILE" 2>/dev/null; then :; else
+            rm -f "$PTMP" 2>/dev/null
+            jq -n '{systemMessage:"tale-mode: cannot persist phase rounds (read-only/locked dir) — stopping to avoid an unbounded loop."}'
+            exit 0
+          fi
+          _plog "$SID" "$PNEXT" "$GATE_FAIL" "$GATE_RC" "$GTAIL"   # durable cross-session audit (fail-safe)
+          PREASON=$(printf 'Committed gate NOT met (phase round %s/%s).
+
+Gate `%s` exited %s. Last output:
+%s
+
+Keep going. This gate is committed in .claude/tale-mode.json and review-gated — do NOT weaken it; drive the work to green. Foundation-first: confirm the artifact EXISTS and the environment is CAPABLE before fixing symptoms. Two-strike: if two fixes in a row failed, STOP and re-verify the foundational assumption instead of trying a third. If you genuinely need the user (a secret, a login, a go/no-go), set "needs_user" in .claude/tale-mode.phase.%s.json to pause and ask — that pauses without clearing the gate.' \
+            "$PNEXT" "$PMAX" "$GATE_FAIL" "$GATE_RC" "$GTAIL" "$SID")
+          jq -n --arg r "$PREASON" '{decision:"block", reason:$r}'
+          exit 0
+        fi
+        # All committed gates GREEN -> fall through to the ad-hoc goal-file logic below (AND-combine:
+        # committed gates passing does not by itself end the turn if a goal-file check still fails).
+      fi
+    else
+      # tale-mode.json is present but its content-hash is NOT trusted -> its gates do NOT run (C8).
+      # Surface a one-time review-and-trust notice (deduped via the marker), but ONLY when there is
+      # no ad-hoc goal-file that could block this turn — so stdout stays exactly one JSON object.
+      if _repo_dirty "$ROOT" && [ ! -f "$GOAL_FILE" ]; then
+        _TN=$(jq -r '.trust_notified // false' "$PHASE_FILE" 2>/dev/null || echo false)
+        if [ "$_TN" != "true" ]; then
+          _H=$(_sha256 "$CFG"); _STORE="${TALE_TRUST_STORE:-${HOME:-}/.claude/tale-mode-trust}"
+          { jq '.trust_notified=true' "$PHASE_FILE" > "$PHASE_FILE.tn" 2>/dev/null && mv "$PHASE_FILE.tn" "$PHASE_FILE" 2>/dev/null; } || rm -f "$PHASE_FILE.tn" 2>/dev/null
+          jq -n --arg h "${_H:-<run: shasum -a 256 .claude/tale-mode.json>}" --arg s "$_STORE" \
+            '{systemMessage: ("tale-mode: a committed .claude/tale-mode.json is present but its content-hash is NOT trusted, so the phase gates will NOT run. Review the gates, then trust this exact content by adding its hash to " + $s + ":\n    " + $h + "  # tale-mode gates\nThe ad-hoc goal-file loop (if any) is unaffected.")}'
+          exit 0
+        fi
+      fi
+    fi
+  fi
+fi
+
 # No active goal -> never interfere with a normal turn.
 [ -f "$GOAL_FILE" ] || exit 0
 # jq is required; if it's missing, fail OPEN (let the turn end) rather than trap.

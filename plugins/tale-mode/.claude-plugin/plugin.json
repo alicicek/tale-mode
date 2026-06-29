@@ -2,8 +2,8 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "tale-mode",
   "displayName": "Tale Mode",
-  "version": "1.3.0",
-  "description": "A discipline mode for complex/high-stakes work: staged planning, decisions-with-receipts, verify-against-source, parallel delegation, adversarial review — plus a self-armed autonomous goal loop (a deterministic Stop gate; the optional read-only Sonnet governor ships as the companion plugin tale-mode-governor).",
+  "version": "2.0.0",
+  "description": "A discipline mode for complex/high-stakes work: staged planning, decisions-with-receipts, verify-against-source, parallel delegation, adversarial review. Always-on core disciplines via a SessionStart hook, plus a self-armed autonomous loop (a deterministic Stop gate) that can also arm itself from a committed, content-hash-trusted .claude/tale-mode.json during a /tale-mode:kickoff-phase phase. The optional read-only Sonnet governor ships as the companion plugin tale-mode-governor.",
   "author": {
     "name": "Ali Cicek",
     "url": "https://github.com/alicicek"
