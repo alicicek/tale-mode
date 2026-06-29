@@ -298,6 +298,33 @@ crun
 ok "run 2 is silent (deduped)"    '[ -z "$OUT" ]'
 ok "marker still valid JSON"      'jq -e . "$(pf)" >/dev/null'
 
+echo "39) Codex shape: CLAUDE_PROJECT_DIR unset + opt-in OFF -> still no-op (default-safe == v1)"
+newwork; arm '{"goal":"g","check":"false","rounds":0,"max_rounds":25}'
+OUT=$(printf '{"session_id":"%s","cwd":"%s","stop_hook_active":false,"hook_event_name":"Stop"}' "$SID" "$WORK" | env -u CLAUDE_PROJECT_DIR bash "$HOOK"); RC=$?
+ok "exit 0"                       '[ "$RC" -eq 0 ]'
+ok "NOT blocking (no cwd-root without opt-in)" '! printf "%s" "$OUT" | jq -e ".decision==\"block\"" >/dev/null 2>&1'
+
+echo "40) Codex shape: CLAUDE_PROJECT_DIR unset + TALE_ALLOW_CWD_ROOT=1 -> cwd becomes root, loop ENGAGES"
+newwork; arm '{"goal":"g","check":"false","rounds":0,"max_rounds":25}'
+OUT=$(printf '{"session_id":"%s","cwd":"%s","stop_hook_active":false,"hook_event_name":"Stop"}' "$SID" "$WORK" | env -u CLAUDE_PROJECT_DIR TALE_ALLOW_CWD_ROOT=1 bash "$HOOK"); RC=$?
+ok "exit 0"                       '[ "$RC" -eq 0 ]'
+ok "decision=block"               'printf "%s" "$OUT" | jq -e ".decision==\"block\"" >/dev/null'
+ok "rounds incremented to 1"      '[ "$(jq -r .rounds "$(gf)")" = "1" ]'
+
+echo "41) opt-in ON but cwd is relative/nonexistent -> rejected, no-op (only an absolute existing dir is a root)"
+newwork; arm '{"goal":"g","check":"false","rounds":0,"max_rounds":25}'
+OUT=$(printf '{"session_id":"%s","cwd":"%s","stop_hook_active":false,"hook_event_name":"Stop"}' "$SID" "relative/not/abs" | env -u CLAUDE_PROJECT_DIR TALE_ALLOW_CWD_ROOT=1 bash "$HOOK"); RC=$?
+ok "exit 0"                       '[ "$RC" -eq 0 ]'
+ok "NOT blocking (bad cwd rejected)" '! printf "%s" "$OUT" | jq -e ".decision==\"block\"" >/dev/null 2>&1'
+
+echo "42) CC precedence: CLAUDE_PROJECT_DIR set WINS even with opt-in on (payload cwd ignored)"
+newwork; arm '{"goal":"g","check":"false","rounds":0,"max_rounds":25}'; BOGUS=$(mktemp -d)
+OUT=$(printf '{"session_id":"%s","cwd":"%s","stop_hook_active":false,"hook_event_name":"Stop"}' "$SID" "$BOGUS" | CLAUDE_PROJECT_DIR="$WORK" TALE_ALLOW_CWD_ROOT=1 bash "$HOOK"); RC=$?
+ok "decision=block"               'printf "%s" "$OUT" | jq -e ".decision==\"block\"" >/dev/null'
+ok "armed against CLAUDE_PROJECT_DIR (rounds in WORK)" '[ "$(jq -r .rounds "$(gf)")" = "1" ]'
+ok "payload cwd NOT used as root" '[ ! -d "$BOGUS/.claude" ]'
+rmdir "$BOGUS" 2>/dev/null || true
+
 echo
 echo "RESULT: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
