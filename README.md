@@ -178,10 +178,10 @@ plugin; there's nothing to wire up.
   blocked with the *foundation-first / two-strike* disciplines injected; check passes → the
   goal clears. It can't run forever (`max_rounds` + a fail-open if it can't persist state),
   and it **pauses for you** (`needs_user`) when it hits something only you can do — a secret,
-  a deploy, a go/no-go — instead of grinding the impossible. **Silent (zero cost) until a
-  goal is armed.** When armed, it appends one JSONL verdict line per round to a local
+  a deploy, a go/no-go — instead of grinding the impossible. **Silent on any normal
+  (non-phase, clean) turn.** When armed, it appends one JSONL verdict line per round to a local
   `.claude/tale-mode.log` audit trail (disable with `TALE_VERDICT_LOG=/dev/null`).
-  62 tests cover the fail/pass/pause/edge/log paths.
+  107 tests cover the fail/pass/pause/edge/log paths (incl. the committed-config trust/dirty/precedence cases).
 - **Layer 2 — the governor** (optional, *separate* plugin): a **read-only** `type:"agent"` Stop hook
   pinned to **Sonnet** that, once the agent is *stuck* (≥ 2 rounds), reads the plan/code with a fresh
   adversarial frame and names the unverified foundation, a violated documented constraint, or a
@@ -194,6 +194,16 @@ plugin; there's nothing to wire up.
   > instant bash check, so the **default install stays free + snappy**; the governor is opt-in for
   > those who want anchor-breaking on stuck loops. Remove it any time with
   > `/plugin uninstall tale-mode-governor@tale-mode`.
+
+**Can't-forget auto-arm (v2).** The goal-file works, but it relies on the agent *remembering* to
+write it. So the loop can also arm from a **committed `.claude/tale-mode.json`** — e.g.
+`{ "gates": ["npm test --silent", "npm run -s typecheck"] }`. During a deliberate
+`/tale-mode:kickoff-phase` phase, with uncommitted changes, the Stop hook runs those `gates` and
+won't let the turn end until they're green — *no agent memory required*. Because committed gates are
+arbitrary shell, they **only run once you trust the file's content-hash** (a one-time
+`echo "<hash>  # tale-mode gates" >> ~/.claude/tale-mode-trust`; the hook never self-trusts), and
+they're AND-combined with any goal-file (the agent can add a gate, never remove a committed one).
+See [Security & trust](#security--trust).
 
 **Longer loops.** Out of the box the loop stops after Claude Code's default **8 consecutive
 blocked turns** (a platform backstop) even if `max_rounds` is higher — a plugin can't change
@@ -262,7 +272,7 @@ A plugin loads into your agent's context and, in Claude Code, runs with the same
 privileges you have — so "only install plugins you trust" is the right instinct (it's
 [Anthropic's own advice](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview)).
 The honest answer to "is this safe?" isn't *trust me* — it's *read it, it's tiny.* The whole
-plugin is plain Markdown, two small shell scripts (a Stop gate plus a tiny SessionStart injector), and small JSON manifests —
+plugin is plain Markdown, three small shell scripts (a Stop gate, a tiny SessionStart injector, and a phase marker), and small JSON manifests —
 a handful of files you can skim in a few minutes.
 
 **What it does / doesn't do**
@@ -273,17 +283,26 @@ a handful of files you can skim in a few minutes.
   hand-edit your `~/.claude/settings.json` hooks or permissions — it only records the plugin
   in a Claude-Code-managed `enabledPlugins` registry. `/plugin uninstall tale-mode@tale-mode`
   removes everything (skill, commands, agent, hooks) cleanly, with no settings surgery.
-- **Three capabilities worth flagging:**
+- **The capabilities worth flagging:**
   1. the bundled `plan-reviewer` agent is granted `Bash` + `WebFetch` so it can run your
      project's checks and verify cited sources — **only when you invoke a review**, under
      Claude Code's normal permission prompts.
-  2. the **autonomous-loop Stop hook is on by default**. It runs on every turn-end but **does
-     nothing until the agent arms a `.claude/active-goal.json`**; when armed, it runs *that
-     goal-file's `check` command* — a shell command the agent wrote in your repo — to decide
-     whether to keep going. Read
+  2. the **always-on SessionStart hook** prints a short, fixed reminder of the core disciplines
+     into every session (it reads nothing, runs no project input, makes no network calls). This is
+     the one ongoing cost: ~200 tokens of static context per session (a one-time injection, not a
+     per-turn model call).
+  3. the **autonomous-loop Stop hook is on by default** and is silent on a normal turn. It arms
+     from two sources you control: an agent-written `.claude/active-goal.json` (runs that file's
+     `check`), and — only during a deliberate `/tale-mode:kickoff-phase` phase with uncommitted
+     changes — a committed `.claude/tale-mode.json` whose content-hash you've **trusted** (runs that
+     config's `gates`). **A repo's gates never run until you add their hash to
+     `~/.claude/tale-mode-trust`** — a manual, user-only step; the hook never self-trusts. Read
      [`plugins/tale-mode/hooks/stop-goal-loop.sh`](plugins/tale-mode/hooks/stop-goal-loop.sh)
-     (~160 lines) so you know exactly what runs and when.
-  3. the **Layer-2 governor** is a **read-only** (`Read`/`Grep`/`Glob`) Sonnet hook — it can
+     (~295 lines) so you know exactly what runs and when.
+  4. the **phase-marker hook** (`mark-phase.sh`, a UserPromptExpansion hook) writes a session-scoped
+     `.claude/tale-mode.phase.<id>.json` when you run `/tale-mode:kickoff-phase`, so the Stop hook
+     knows a build phase is active. It only writes that marker and always exits 0 with no output.
+  5. the **Layer-2 governor** is a **read-only** (`Read`/`Grep`/`Glob`) Sonnet hook — it can
      read your code to spot an anchor, but cannot run shell or write files.
 - It never asks Claude to read secrets, weaken security, or run destructive commands. The
   whole point is to make Claude *more* careful.
@@ -291,7 +310,7 @@ a handful of files you can skim in a few minutes.
 **Read these before you trust it** (all under `plugins/tale-mode/`):
 `skills/tale-mode/SKILL.md` · `commands/plan-phase.md` · `commands/kickoff-phase.md` ·
 `agents/plan-reviewer.md` · `hooks/stop-goal-loop.sh` · `hooks/session-start.sh` ·
-`hooks/hooks.json` · `output-styles/tale-mode.md`.
+`hooks/mark-phase.sh` · `hooks/hooks.json` · `output-styles/tale-mode.md`.
 
 Found a problem? See [`SECURITY.md`](SECURITY.md).
 
@@ -342,8 +361,9 @@ tale-mode/                                 (repo — also the plugin marketplace
 │   ├── autonomous-loop-design.md          #   design rationale + honest build log
 │   └── HOOKS.md                           #   optional deterministic typecheck/lint gates
 ├── tests/
-│   ├── test-stop-goal-loop.sh             # tests for the Stop loop hook
-│   └── test-session-start.sh              # tests for the SessionStart hook
+│   ├── test-stop-goal-loop.sh             # tests for the Stop loop hook (107 checks / 38 cases)
+│   ├── test-session-start.sh              # tests for the SessionStart hook
+│   └── test-mark-phase.sh                 # tests for the phase-marker hook
 └── plugins/
     ├── tale-mode/                         # CORE plugin (free)
     │   ├── .claude-plugin/plugin.json     # metadata (defaultEnabled)
@@ -351,9 +371,10 @@ tale-mode/                                 (repo — also the plugin marketplace
     │   ├── commands/                      # /tale-mode:plan-phase · /tale-mode:kickoff-phase
     │   ├── agents/plan-reviewer.md        # the independent adversarial reviewer
     │   ├── hooks/
-    │   │   ├── hooks.json                 # wires the Stop + SessionStart hooks (Layer 1)
-    │   │   ├── stop-goal-loop.sh          # the self-armed goal loop (Layer 1)
-    │   │   └── session-start.sh           # always-on discipline injection (SessionStart)
+    │   │   ├── hooks.json                 # wires the Stop + SessionStart + UserPromptExpansion hooks
+    │   │   ├── stop-goal-loop.sh          # goal loop + committed-config auto-arm (Layer 1)
+    │   │   ├── session-start.sh           # always-on discipline injection (SessionStart)
+    │   │   └── mark-phase.sh              # writes the phase marker on /tale-mode:kickoff-phase
     │   └── output-styles/tale-mode.md     # opt-in output style (selectable via /config)
     └── tale-mode-governor/                # OPTIONAL companion (per-turn Sonnet cost)
         ├── .claude-plugin/plugin.json     # metadata (depends on tale-mode)

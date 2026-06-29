@@ -1,7 +1,7 @@
 # Security Policy
 
-Tale Mode is a Claude Code **plugin** — a set of Markdown instruction files, two small hook
-shell scripts (a Stop gate plus a SessionStart discipline injector), and JSON manifests. There's no server, no build step, and no runtime
+Tale Mode is a Claude Code **plugin** — a set of Markdown instruction files, three small hook
+shell scripts (a Stop gate, a SessionStart discipline injector, and a phase marker), and JSON manifests. There's no server, no build step, and no runtime
 service. But a plugin is loaded into an AI agent's context and can shape what the agent does,
 so its contents matter. This policy explains the threat model and how to report a problem.
 
@@ -13,25 +13,43 @@ The complete, reviewable surface (all under `plugins/tale-mode/`):
   that would steer Claude toward reading secrets, exfiltrating data, weakening security, or
   running destructive commands. (By design it does the opposite.)
 - `hooks/stop-goal-loop.sh` + `hooks/hooks.json` — the autonomous-loop **Stop hook**, on by
-  default. It does nothing until the agent arms a `.claude/active-goal.json`; when armed it runs
-  *that goal-file's `check` command* (a shell command the agent wrote in your repo) to decide
-  whether to keep the turn going, and appends one JSONL verdict line per round to a local
-  `.claude/tale-mode.log` runtime audit file (the `check` command + its last-1200-byte output
-  tail — the fail-round tail is also shown to the agent, the pass-round tail is logged only, so
-  keep `check`s free of secrets since their output is now persisted at rest locally). No network
-  access; same local trust boundary as the goal-file write; disable with `TALE_VERDICT_LOG=/dev/null`.
-  Bounded by `max_rounds` + a fail-open.
+  default. It is silent on any normal (non-phase, clean) turn, and arms from two sources, both
+  under your control:
+  1. an **agent-written `.claude/active-goal.json`** — runs *that goal-file's `check` command*
+     (shell the agent wrote in your repo); and
+  2. a **committed, content-hash-TRUSTED `.claude/tale-mode.json`** — only during a deliberate
+     `/tale-mode:kickoff-phase` phase (a session-scoped marker — see `mark-phase.sh` below) **and**
+     while the working tree is dirty, it runs that config's `gates`. **A repo's gates never execute
+     until you trust their exact content-hash**, by adding it to `~/.claude/tale-mode-trust` — a
+     manual, user-only action. The hook and the agent only ever *read* that store, never write it,
+     so a malicious repo cannot self-trust. The committed gates are AND-combined with any goal-file:
+     the agent's file may *add* a gate but can never *suppress* a committed one.
+  Either way, `check`/`gates` are arbitrary shell run with your privileges to decide whether to keep
+  the turn going; the hook appends a JSONL verdict line to a local `.claude/tale-mode.log` audit file
+  for each goal-file `check` round and each committed-gate **block** (the command + its last-1200-byte
+  output tail — keep these free of secrets, as that tail is persisted at rest locally). No network
+  access; disable the log with `TALE_VERDICT_LOG=/dev/null`. Bounded by `max_rounds` + a fail-open.
 - `hooks/session-start.sh` + `hooks/hooks.json` — the always-on **SessionStart hook**. On every
   session start it prints a short, fixed reminder of the core disciplines (verify-against-source /
   foundation-first / two-strike) for Claude to read. It reads no repo files, runs no project input,
   makes no network calls, needs nothing beyond the ubiquitous `cat`, and always exits 0 — it can
   never block.
+- `hooks/mark-phase.sh` + `hooks/hooks.json` — the **phase-marker hook** (a UserPromptExpansion
+  hook). When you run `/tale-mode:kickoff-phase`, it writes a session-scoped
+  `.claude/tale-mode.phase.<id>.json` so the Stop hook knows a deliberate build phase is active
+  (this is what gates the committed-config auto-arm above). It reads only the hook payload, writes
+  only that marker, makes no network calls, and **always exits 0 with no output** — it can never
+  block or alter your command.
 - `output-styles/tale-mode.md` — an **opt-in** output style (you select it via `/config`): plain
   Markdown instructions that shape how Claude works, inert until you choose it.
 - `agents/plan-reviewer.md` — a subagent granted `Bash` + `WebFetch`. These run only when you
   invoke a review, under Claude Code's permission prompts.
 - `commands/plan-phase.md`, `commands/kickoff-phase.md` — slash-command prompt templates; no
   code execution of their own.
+
+A repo's committed gate config (`.claude/tale-mode.json`) and the trust store (`~/.claude/tale-mode-trust`)
+are **not** part of the plugin — the config lives in each consumer repo, and you review it at the moment
+you choose to trust its content-hash. Until you do, it is inert (its gates never run).
 
 Install/uninstall is Claude Code's built-in `/plugin` mechanism — it records the plugin in a
 managed `enabledPlugins` registry and does **not** hand-edit your `settings.json` hooks or

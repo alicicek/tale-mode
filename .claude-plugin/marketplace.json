@@ -13,7 +13,7 @@
     {
       "name": "tale-mode",
       "source": "./plugins/tale-mode",
-      "description": "Discipline mode (staged planning, receipts, verify-against-source, adversarial review) + plan/kickoff commands + a plan-reviewer agent + a free Stop-hook autonomous goal loop (Layer 1, a deterministic gate).",
+      "description": "Discipline mode (staged planning, receipts, verify-against-source, adversarial review) + plan/kickoff commands + a plan-reviewer agent + an always-on SessionStart discipline injector + a Stop-hook autonomous loop (Layer 1, a deterministic gate) that can arm itself from a committed, content-hash-trusted .claude/tale-mode.json during a kickoff phase.",
       "category": "productivity",
       "keywords": ["workflow", "planning", "stop-hook", "autonomous-loop", "review"]
     },

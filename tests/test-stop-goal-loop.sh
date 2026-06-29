@@ -17,6 +17,24 @@ run()     { OUT=$(printf '{"session_id":"%s","cwd":"%s","stop_hook_active":false
               | CLAUDE_PROJECT_DIR="$WORK" bash "$HOOK"); RC=$?; }   # pin ROOT to WORK (safe + deterministic)
 ok()      { if eval "$2"; then echo "  PASS  $1"; PASS=$((PASS+1)); else echo "  FAIL  $1  | OUT=<$OUT> RC=$RC"; FAIL=$((FAIL+1)); fi; }
 
+# --- Phase C: committed-config helpers. Each case gets its own GIT repo; the trust store and the
+#     stderr capture live OUTSIDE the repo so they never show up as "dirty" and skew enforcement. ---
+CSID="cphase1session"   # a fixed, valid session token for the committed-config cases
+_h256()   { if   command -v sha256sum >/dev/null 2>&1; then sha256sum    < "$1" | awk '{print $1}';
+            elif command -v shasum    >/dev/null 2>&1; then shasum -a 256 < "$1" | awk '{print $1}';
+            else                                              openssl dgst -sha256 < "$1" | awk '{print $NF}'; fi; }
+cwork()   { WORK=$(mktemp -d); git -C "$WORK" init -q; git -C "$WORK" config user.email t@t; git -C "$WORK" config user.name t; mkdir -p "$WORK/.claude"; CTRUST=$(mktemp); CERR=$(mktemp); }
+pf()      { echo "$WORK/.claude/tale-mode.phase.$CSID.json"; }   # the phase marker / committed-loop state file
+cmark()   { printf '{"session":"%s","rounds":%s,"max_rounds":%s,"needs_user":%s}\n' "$CSID" "${1:-0}" "${2:-50}" "${3:-null}" > "$(pf)"; }
+ccfg()    { printf '%s' "$1" > "$WORK/.claude/tale-mode.json"; }
+ctrust()  { printf '%s  # test gates\n' "$(_h256 "$WORK/.claude/tale-mode.json")" > "$CTRUST"; }   # trust THIS config's hash
+cuntrust(){ : > "$CTRUST"; }                                                                        # empty store -> untrusted
+cbase()   { git -C "$WORK" add -A; git -C "$WORK" commit -qm base; }   # clean, committed baseline
+cdirty()  { echo "real work" > "$WORK/src.txt"; }                       # a NON-excluded uncommitted change
+crun()    { OUT=$(printf '{"session_id":"%s","cwd":"%s","stop_hook_active":false,"hook_event_name":"Stop"}' "$CSID" "$WORK" \
+              | CLAUDE_PROJECT_DIR="$WORK" TALE_TRUST_STORE="$CTRUST" bash "$HOOK" 2>"$CERR"); RC=$?; CERRTXT=$(cat "$CERR"); }
+cpr()     { jq -r '.rounds' "$(pf)" 2>/dev/null; }
+
 echo "1) no goal-file -> silent no-op"
 newwork; run
 ok "exit 0"            '[ "$RC" -eq 0 ]'
@@ -149,6 +167,12 @@ newwork; arm '{"goal":"g","check":"false","rounds":0,"max_rounds":25}'
 OUT=$(printf '{"session_id":"%s","cwd":"%s","stop_hook_active":false,"hook_event_name":"Stop"}' "$SID" "$WORK" \
       | TALE_VERDICT_LOG=//dev/stdout CLAUDE_PROJECT_DIR="$WORK" bash "$HOOK"); RC=$?
 ok "slash-variant //dev/stdout also guarded" '[ "$(printf "%s" "$OUT" | jq -s "length")" = "1" ]'
+# a leading-zero fd alias (/dev/fd/01) — macOS resolves it to fd1, so the guard must catch it too
+newwork; arm '{"goal":"g","check":"false","rounds":0,"max_rounds":25}'
+OUT=$(printf '{"session_id":"%s","cwd":"%s","stop_hook_active":false,"hook_event_name":"Stop"}' "$SID" "$WORK" \
+      | TALE_VERDICT_LOG=/dev/fd/01 CLAUDE_PROJECT_DIR="$WORK" bash "$HOOK"); RC=$?
+ok "exit 0"                              '[ "$RC" -eq 0 ]'
+ok "fd-alias /dev/fd/01 also guarded"    '[ "$(printf "%s" "$OUT" | jq -s "length")" = "1" ]'
 
 echo '20) hardening: a leading-zero STRING rounds ("08") must NOT crash $((...)) — read as base-10'
 newwork; arm '{"goal":"g","check":"false","rounds":"08","max_rounds":25}'
@@ -159,6 +183,120 @@ ok "exit 0 (no crash)"         '[ "$RC" -eq 0 ]'
 ok "decision=block (emitted)"  'printf "%s" "$OUT" | jq -e ".decision==\"block\"" >/dev/null'
 ok "stderr silent (no octal error)"   '[ -z "$ERR" ]'
 ok "rounds advanced 8 -> 9 (base-10, not octal/string)" '[ "$(jq -r .rounds "$(gf)")" = "9" ]'
+
+echo "21) Phase C: committed config trusted + dirty + FAILING gate -> auto-arm: block + phase rounds++"
+cwork; cmark 0; ccfg '{"gates":["false"],"doneWhen":"gatesGreen"}'; ctrust; cdirty; crun
+ok "exit 0"                       '[ "$RC" -eq 0 ]'
+ok "decision=block"               'printf "%s" "$OUT" | jq -e ".decision==\"block\"" >/dev/null'
+ok "reason names the committed gate" 'printf "%s" "$OUT" | jq -r ".reason" | grep -q "Committed gate"'
+ok "phase rounds -> 1"            '[ "$(cpr)" = "1" ]'
+ok "stderr silent"               '[ -z "$CERRTXT" ]'
+
+echo "22) committed config trusted + dirty + PASSING gate, no goal -> allow (silent), rounds unchanged"
+cwork; cmark 0; ccfg '{"gates":["true"]}'; ctrust; cdirty; crun
+ok "exit 0"                       '[ "$RC" -eq 0 ]'
+ok "no decision (allow)"          '! printf "%s" "$OUT" | jq -e ".decision" >/dev/null 2>&1'
+ok "phase rounds still 0"         '[ "$(cpr)" = "0" ]'
+
+echo "23) C8 trust gate governs EXECUTION: an untrusted gate must NOT run; a trusted one runs (side-effect proof)"
+cwork; cmark 0; ccfg "{\"gates\":[\"touch $WORK/RAN\"]}"; cdirty
+cuntrust; crun
+ok "untrusted: systemMessage NOT trusted" 'printf "%s" "$OUT" | jq -r ".systemMessage" | grep -q "NOT trusted"'
+ok "untrusted: gate did NOT execute"      '[ ! -e "$WORK/RAN" ]'
+ctrust; crun
+ok "trusted: gate DID execute (side effect appears)" '[ -e "$WORK/RAN" ]'
+ok "trusted: gate passed -> no block"     '! printf "%s" "$OUT" | jq -e ".decision==\"block\"" >/dev/null 2>&1'
+
+echo "24) committed config trusted but CLEAN tree -> no enforce (only real work is taxed)"
+cwork; cmark 0; ccfg '{"gates":["false"]}'; ctrust; cbase; crun
+ok "exit 0"                       '[ "$RC" -eq 0 ]'
+ok "no decision (clean = no enforce)" '! printf "%s" "$OUT" | jq -e ".decision" >/dev/null 2>&1'
+
+echo "25) C7: ONLY the hook's own files changed (log + marker) -> NOT dirty -> no enforce"
+cwork; cmark 0; ccfg '{"gates":["false"]}'; ctrust; cbase
+printf '{}' > "$WORK/.claude/tale-mode.log"; cmark 5   # rewrite ONLY excluded files
+crun
+ok "no enforce (own files excluded)" '! printf "%s" "$OUT" | jq -e ".decision" >/dev/null 2>&1'
+
+echo "26) C7 control: a non-excluded change present -> IS dirty -> the guard fires (proves it is not inert)"
+cwork; cmark 0; ccfg '{"gates":["false"]}'; ctrust; cbase; cdirty; crun
+ok "blocks when real work present" 'printf "%s" "$OUT" | jq -e ".decision==\"block\"" >/dev/null'
+
+echo "27) Inv6: .claude/deferrals.json is NOT excluded -> editing it counts as dirty -> enforce"
+cwork; cmark 0; ccfg '{"gates":["false"]}'; ctrust; cbase
+printf '{"deferrals":[]}' > "$WORK/.claude/deferrals.json"   # untracked, deliberately NOT excluded
+crun
+ok "deferrals.json counts as dirty" 'printf "%s" "$OUT" | jq -e ".decision==\"block\"" >/dev/null'
+
+echo "28) C5 precedence: committed FAILS + ad-hoc goal that PASSES -> committed blocks first (no suppression)"
+cwork; cmark 0; ccfg '{"gates":["false"]}'; ctrust; cdirty
+printf '{"goal":"g","check":"true","rounds":0,"max_rounds":25}' > "$WORK/.claude/active-goal.$CSID.json"
+crun
+ok "blocks on the committed gate" 'printf "%s" "$OUT" | jq -r ".reason" | grep -q "Committed gate"'
+
+echo "29) AND-combine: committed PASSES + ad-hoc goal FAILS -> blocks on the goal"
+cwork; cmark 0; ccfg '{"gates":["true"]}'; ctrust; cdirty
+printf '{"goal":"g","check":"false","rounds":0,"max_rounds":25}' > "$WORK/.claude/active-goal.$CSID.json"
+crun
+ok "blocks on the goal-file check" 'printf "%s" "$OUT" | jq -r ".reason" | grep -q "Goal NOT met"'
+
+echo "30) needs_user in the marker -> PAUSE (allow, keep marker, gates not run) [D1 / Invariant 2]"
+cwork; cmark 0 50 '"need a secret only you have"'; ccfg '{"gates":["false"]}'; ctrust; cdirty; crun
+ok "exit 0 (paused)"             '[ "$RC" -eq 0 ]'
+ok "no block"                    '! printf "%s" "$OUT" | jq -e ".decision==\"block\"" >/dev/null 2>&1'
+ok "marker kept"                 '[ -f "$(pf)" ]'
+ok "rounds NOT advanced (gate not run)" '[ "$(cpr)" = "0" ]'
+
+echo "31) committed max_rounds -> give up cleanly: delete marker + systemMessage"
+cwork; cmark 50 50; ccfg '{"gates":["false"]}'; ctrust; cdirty; crun
+ok "exit 0"                      '[ "$RC" -eq 0 ]'
+ok "systemMessage hit max_rounds" 'printf "%s" "$OUT" | jq -r ".systemMessage" | grep -q "max_rounds"'
+ok "marker deleted (disarmed)"   '[ ! -f "$(pf)" ]'
+
+echo "32) fail-open: cannot persist phase rounds (read-only .claude) -> allow, never trap"
+cwork; cmark 0; ccfg '{"gates":["false"]}'; ctrust; cdirty
+chmod 555 "$WORK/.claude"; crun; chmod 755 "$WORK/.claude"
+ok "exit 0"                      '[ "$RC" -eq 0 ]'
+ok "no block (failed open)"      '! printf "%s" "$OUT" | jq -e ".decision==\"block\"" >/dev/null 2>&1'
+ok "systemMessage cannot persist" 'printf "%s" "$OUT" | jq -r ".systemMessage" | grep -q "cannot persist phase rounds"'
+
+echo "33) Inv5: a phase marker but NO tale-mode.json -> committed block inert; ad-hoc goal-file logic only"
+cwork; cmark 0; cdirty
+printf '{"goal":"g","check":"false","rounds":0,"max_rounds":25}' > "$WORK/.claude/active-goal.$CSID.json"
+crun
+ok "falls through to the goal-file (blocks on goal)" 'printf "%s" "$OUT" | jq -r ".reason" | grep -q "Goal NOT met"'
+
+echo "34) stdin-eating gate must NOT skip later gates (</dev/null): gates [cat, false] -> still blocks on 'false'"
+cwork; cmark 0; ccfg '{"gates":["cat","false"]}'; ctrust; cdirty; crun
+ok "blocks (gate 2 ran despite cat)" 'printf "%s" "$OUT" | jq -e ".decision==\"block\"" >/dev/null'
+ok "reason names the failing gate 'false'" 'printf "%s" "$OUT" | jq -r ".reason" | grep -q "Gate .false. exited"'
+
+echo "35) committed-gate block writes a verdict line to the audit log (kind=phase-gate)"
+cwork; cmark 0; ccfg '{"gates":["false"]}'; ctrust; cdirty; crun
+ok "log written"               '[ -f "$(vlog)" ]'
+ok "last line valid JSON"      'tail -n1 "$(vlog)" | jq -e . >/dev/null'
+ok "kind=phase-gate"           '[ "$(tail -n1 "$(vlog)" | jq -r .kind)" = "phase-gate" ]'
+ok "verdict=fail + round=1"    '[ "$(tail -n1 "$(vlog)" | jq -r .verdict)" = "fail" ] && [ "$(tail -n1 "$(vlog)" | jq -r .round)" = "1" ]'
+
+echo "36) untrusted config + CLEAN tree -> silent (the notice only fires when there is real work)"
+cwork; cmark 0; ccfg '{"gates":["false"]}'; cuntrust; cbase; crun
+ok "exit 0"                    '[ "$RC" -eq 0 ]'
+ok "silent (no notice on a clean tree)" '[ -z "$OUT" ]'
+
+echo "37) foreign phase-marker reap: a stale OTHER-session marker is removed; ours is kept"
+cwork; cmark 0
+printf '%s' '{"session":"dead","rounds":0}' > "$WORK/.claude/tale-mode.phase.deadsession.json"
+touch -t 202001010000 "$WORK/.claude/tale-mode.phase.deadsession.json"
+crun
+ok "stale foreign marker reaped" '[ ! -f "$WORK/.claude/tale-mode.phase.deadsession.json" ]'
+ok "our live marker kept"        '[ -f "$(pf)" ]'
+
+echo "38) untrusted notice dedups (fires once) and leaves the marker valid JSON"
+cwork; cmark 0; ccfg '{"gates":["false"]}'; cuntrust; cdirty; crun
+ok "run 1 emits the trust notice" 'printf "%s" "$OUT" | jq -r ".systemMessage" | grep -q "NOT trusted"'
+crun
+ok "run 2 is silent (deduped)"    '[ -z "$OUT" ]'
+ok "marker still valid JSON"      'jq -e . "$(pf)" >/dev/null'
 
 echo
 echo "RESULT: $PASS passed, $FAIL failed"

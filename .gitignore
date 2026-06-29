@@ -1,4 +1,19 @@
 # tale-mode runtime artifacts (per-session loop state + audit log) — never commit these.
-# deferrals.json is intentionally NOT ignored: it is the committed, PR-reviewed deferral record.
+# Committed (NOT ignored): .claude/tale-mode.json (the trusted gate config) and
+# .claude/deferrals.json (the PR-reviewed deferral record).
 /.claude/tale-mode.log
 /.claude/active-goal*.json
+/.claude/tale-mode.phase.*.json
+
+# OS / editor cruft — never commit these.
+.DS_Store
+*.swp
+*~
+*.orig
+*.tmp
+
+# Browser-automation / test artifacts (Playwright, screenshots, scratch output).
+/playwright-report/
+/test-results/
+/screenshots/
+*.png.tmp
