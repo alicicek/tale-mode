@@ -44,7 +44,10 @@ Plan the user's task at a high bar. Do not skip a step:
    into independently-shippable phases — each sized to one session / one PR / one coherent
    verify-loop, with its own done-criteria, gate, and rollback. Keep each phase thin (intent +
    gate), not step-by-step — the executor re-derives specifics against live code at kickoff. Order
-   foundation-first, then independent fan-out. Emit a progress tracker and a kickoff cue per phase.
+   foundation-first, then independent fan-out. Emit a progress tracker and a per-phase **kickoff
+   cue** so the plan self-documents how to start each phase: on Claude Code
+   `/tale-mode:kickoff-phase <this-file> "Phase N"`; on Codex, invoke the `kickoff-phase` skill (from
+   `/skills`) naming this file + "Phase N".
 
 7. **Runnable gates.** Exact commands with expected output — never "test it" — and note what each
    check can't catch. For each phase name the behavioral check that proves it works (Claude Code:
