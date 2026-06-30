@@ -97,11 +97,12 @@ ok "NOT blocking"      '! printf "%s" "$OUT" | jq -e ".decision==\"block\"" >/de
 ok "file cleared"      '[ ! -f "$(gf)" ]'
 ok "no-usable-check msg" 'printf "%s" "$OUT" | jq -r ".systemMessage" | grep -q "no usable check"'
 
-echo "12) CLAUDE_PROJECT_DIR unset -> no-op (never arms against a cwd-controlled path)"
-newwork; arm '{"goal":"g","check":"false","rounds":0,"max_rounds":25}'
-OUT=$(printf '{"cwd":"%s","stop_hook_active":false,"hook_event_name":"Stop"}' "$WORK" | env -u CLAUDE_PROJECT_DIR bash "$HOOK"); RC=$?
+echo "12) CLAUDE_PROJECT_DIR unset + no opt-in -> no-op (never arms against a cwd-controlled path)"
+newwork; arm '{"goal":"g","check":"false","rounds":0,"max_rounds":25}'; HM12=$(mktemp -d)   # clean HOME (no opt-in marker file)
+OUT=$(printf '{"cwd":"%s","stop_hook_active":false,"hook_event_name":"Stop"}' "$WORK" | env -u CLAUDE_PROJECT_DIR -u TALE_ALLOW_CWD_ROOT HOME="$HM12" bash "$HOOK"); RC=$?
 ok "exit 0"            '[ "$RC" -eq 0 ]'
 ok "NOT blocking"      '! printf "%s" "$OUT" | jq -e ".decision==\"block\"" >/dev/null 2>&1'
+rm -rf "$HM12"
 
 echo "13) session-scoped: a goal armed by session A does NOT trap session B"
 newwork
@@ -298,11 +299,12 @@ crun
 ok "run 2 is silent (deduped)"    '[ -z "$OUT" ]'
 ok "marker still valid JSON"      'jq -e . "$(pf)" >/dev/null'
 
-echo "39) Codex shape: CLAUDE_PROJECT_DIR unset + opt-in OFF -> still no-op (default-safe == v1)"
-newwork; arm '{"goal":"g","check":"false","rounds":0,"max_rounds":25}'
-OUT=$(printf '{"session_id":"%s","cwd":"%s","stop_hook_active":false,"hook_event_name":"Stop"}' "$SID" "$WORK" | env -u CLAUDE_PROJECT_DIR bash "$HOOK"); RC=$?
+echo "39) Codex shape: CLAUDE_PROJECT_DIR unset + opt-in OFF (no env, no file) -> still no-op (default-safe == v1)"
+newwork; arm '{"goal":"g","check":"false","rounds":0,"max_rounds":25}'; HM39=$(mktemp -d)   # clean HOME (no marker file)
+OUT=$(printf '{"session_id":"%s","cwd":"%s","stop_hook_active":false,"hook_event_name":"Stop"}' "$SID" "$WORK" | env -u CLAUDE_PROJECT_DIR -u TALE_ALLOW_CWD_ROOT HOME="$HM39" bash "$HOOK"); RC=$?
 ok "exit 0"                       '[ "$RC" -eq 0 ]'
 ok "NOT blocking (no cwd-root without opt-in)" '! printf "%s" "$OUT" | jq -e ".decision==\"block\"" >/dev/null 2>&1'
+rm -rf "$HM39"
 
 echo "40) Codex shape: CLAUDE_PROJECT_DIR unset + TALE_ALLOW_CWD_ROOT=1 -> cwd becomes root, loop ENGAGES"
 newwork; arm '{"goal":"g","check":"false","rounds":0,"max_rounds":25}'
@@ -343,6 +345,16 @@ ok "exit 0"                            '[ "$RC" -eq 0 ]'
 ok "silent no-op (no cwd-root, no block)" '[ -z "$OUT" ]'
 ok "armed goal NOT claimed under cwd"     '[ ! -f "$(gf)" ]'
 rm -rf "$NOJQ"
+
+echo "44) Codex FILE opt-in: ~/.tale-mode-allow-cwd-root present, NO env var -> cwd root, loop ENGAGES"
+newwork; arm '{"goal":"g","check":"false","rounds":0,"max_rounds":25}'
+HM44=$(mktemp -d); : > "$HM44/.tale-mode-allow-cwd-root"   # the user's one-time opt-in marker
+OUT=$(printf '{"session_id":"%s","cwd":"%s","stop_hook_active":false,"hook_event_name":"Stop"}' "$SID" "$WORK" \
+        | env -u CLAUDE_PROJECT_DIR -u TALE_ALLOW_CWD_ROOT HOME="$HM44" bash "$HOOK"); RC=$?
+ok "exit 0"                       '[ "$RC" -eq 0 ]'
+ok "decision=block (file opt-in)" 'printf "%s" "$OUT" | jq -e ".decision==\"block\"" >/dev/null'
+ok "rounds incremented to 1"      '[ "$(jq -r .rounds "$(gf)")" = "1" ]'
+rm -rf "$HM44"
 
 echo
 echo "RESULT: $PASS passed, $FAIL failed"

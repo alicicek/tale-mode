@@ -94,5 +94,5 @@ would block any session that ends with red gates). **Recommendation: phase-scope
    self-contained, design-robust (needed in every version).
 2. **The committed `.claude/tale-mode.json` + the reconciler auto-arm** — the deterministic spine.
 3. **The deferral backlog + done-gate** — the silent-drop guarantee.
-4. **Docs + the 31-test suite extended + SKILL/kickoff wiring** (phase marker; clarify the goal-file
+4. **Docs + the test suite extended + SKILL/kickoff wiring** (phase marker; clarify the goal-file
    loop is *separate from the built-in `/goal`* — a conflation that bit a careful session).

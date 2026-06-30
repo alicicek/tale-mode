@@ -1,27 +1,29 @@
 #!/usr/bin/env bash
-# tale-mode — phase marker (UserPromptExpansion hook).
+# tale-mode — phase marker (UserPromptSubmit hook; cross-platform: Claude Code + Codex).
 #
 # WHAT IT DOES
-#   Claude Code runs this when a slash command EXPANDS into a prompt and the command name
-#   matches the hooks.json matcher ("tale-mode:kickoff-phase"). It records that a DELIBERATE
-#   build phase has started in THIS session by writing a session-scoped marker:
+#   Runs on every UserPromptSubmit. When the submitted prompt is a /tale-mode:kickoff-phase
+#   invocation, it records that a DELIBERATE build phase has started in THIS session by writing a
+#   session-scoped marker:
 #       <project>/.claude/tale-mode.phase.<session_id>.json
 #   The Stop hook reads that marker to auto-arm the committed-config gate loop — so the
-#   enforcement can't be forgotten: typing `/tale-mode:kickoff-phase` turns it on, with no
+#   enforcement can't be forgotten: running /tale-mode:kickoff-phase turns it on, with no
 #   agent memory involved. (The committed gates still only run if the repo's `tale-mode.json`
 #   hash is in your trust store — see hooks/stop-goal-loop.sh.)
 #
-# CONTRACT (verified live against claude 2.1.195 via a --plugin-dir smoke)
-#   UserPromptExpansion stdin carries: session_id, command_name (NAMESPACED, e.g.
-#   "tale-mode:kickoff-phase"), command_args, command_source, expansion_type, cwd. The
-#   matcher is a regex tested against the FULL namespaced command_name (a bare "kickoff-phase"
-#   does NOT match) — so hooks.json uses the namespaced name; this script re-confirms it.
+# WHY UserPromptSubmit (not UserPromptExpansion)
+#   UserPromptExpansion is a Claude-Code-only event; Codex's strict hook parser rejects the
+#   unknown event ("unknown variant") and fails to load the WHOLE plugin's hooks. UserPromptSubmit
+#   is valid on BOTH runtimes, and on Claude Code its payload carries the literal `prompt`
+#   (verified live via a --plugin-dir smoke: prompt="/tale-mode:kickoff-phase <plan> <phase>"),
+#   so we detect the kickoff from the prompt text. A `command_name` field (if a host provides one)
+#   is also accepted, for forward/back compat.
 #
 # SAFETY
-#   This hook must NEVER block or perturb the user's command. It drains stdin, suppresses
-#   every error, writes nothing to stdout/stderr, and ALWAYS exits 0 (so the expansion
-#   proceeds untouched — only exit 2 / a "block" decision would interrupt it). It makes no
-#   network calls and reads no repo files; its only effect is writing the marker.
+#   This hook must NEVER block or perturb the user's prompt. It fires on EVERY submit, so it must
+#   be cheap and silent on a non-kickoff prompt. It drains stdin, suppresses every error, writes
+#   nothing to stdout/stderr, and ALWAYS exits 0. It makes no network calls and reads no repo
+#   files; its only effect is writing the marker on a kickoff.
 set -uo pipefail
 
 INPUT=$(cat 2>/dev/null || true)
@@ -29,15 +31,16 @@ INPUT=$(cat 2>/dev/null || true)
 # jq is required to read the session id; without it we can't session-scope safely -> do nothing.
 command -v jq >/dev/null 2>&1 || exit 0
 
-# Defensive command guard: the hooks.json matcher already scopes us to the kickoff command,
-# but re-confirm the command name so a mis-wired/over-broad matcher can't arm on the wrong
-# command. Accept any plugin namespace ending in ":kickoff-phase" (the marketplace namespace
-# is normally "tale-mode" but need not be relied upon literally).
+# Detect a kickoff-phase invocation. We run on EVERY UserPromptSubmit, so a non-kickoff prompt
+# MUST fall through silently. Match either the literal `prompt` (UserPromptSubmit, both runtimes —
+# e.g. "/tale-mode:kickoff-phase <plan> <phase>") or a `command_name` (if a host provides one).
+# Accept any plugin namespace ending in ":kickoff-phase" (normally "tale-mode", not relied upon).
 CMD=$(printf '%s' "$INPUT" | jq -r '.command_name // ""' 2>/dev/null || true)
-case "$CMD" in
-  *:kickoff-phase|kickoff-phase) ;;
-  *) exit 0 ;;
-esac
+PROMPT=$(printf '%s' "$INPUT" | jq -r '.prompt // ""' 2>/dev/null || true)
+_hit=0
+case "$CMD"    in *:kickoff-phase|kickoff-phase) _hit=1 ;; esac
+case "$PROMPT" in *:kickoff-phase*)              _hit=1 ;; esac
+[ "$_hit" = 1 ] || exit 0
 
 # Project root: prefer CLAUDE_PROJECT_DIR (Claude Code sets it for hooks); fall back to the
 # payload's cwd. The cwd fallback is acceptable here because this hook is NON-blocking and only

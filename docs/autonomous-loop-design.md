@@ -13,7 +13,7 @@
 
 ## BUILD STATUS (2026-06-24) — Layer 1 hardened + tested; Layer 2 rebuilt; live-test gating
 **Layer 1 (deterministic command hook)** is built, hardened, tested: `hooks/stop-goal-loop.sh`
-(31/31 in `hooks/test-stop-goal-loop.sh`). An adversarial ultracode audit found + fixed: a **P0
+(120/120 in `tests/test-stop-goal-loop.sh`). An adversarial ultracode audit found + fixed: a **P0
 infinite-loop trap** (now FAILS OPEN if it can't persist the round counter), a whitespace-check
 false-pass, a wrong-project `cwd` fallback (now REQUIRES `CLAUDE_PROJECT_DIR`), and a missing check
 timeout. Corrections to stale prose elsewhere in this doc:

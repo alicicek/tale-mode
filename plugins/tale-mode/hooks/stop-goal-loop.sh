@@ -44,15 +44,17 @@ INPUT=$(cat 2>/dev/null || true)
 #
 # Cross-runtime (e.g. OpenAI Codex) does NOT export CLAUDE_PROJECT_DIR, so the only project-root
 # signal there is the stdin `cwd`. To preserve the no-cwd-trap guarantee, that fallback stays OFF
-# unless the USER opts in for this runtime via TALE_ALLOW_CWD_ROOT=1 (set in the host's env config,
-# e.g. Codex's [shell_environment_policy.set]). It is a USER grant, not an agent one: the hook's env
-# comes from the host, not the agent's transient shell, so the agent still cannot authorize its own
-# enforcement. With the var unset, the path below is byte-identical to v1 (CLAUDE_PROJECT_DIR or
-# nothing). Enable it only after confirming on that runtime that the Stop-payload `cwd` is the
-# stable workspace root (docs/cross-platform-plan.md, Phase D-core smoke). We accept only an
-# absolute, existing directory, so a relative/empty/garbage cwd can never resolve to a root.
+# unless the USER opts in for this runtime, via EITHER:
+#   - TALE_ALLOW_CWD_ROOT=1 in the host env (works on Claude Code), OR
+#   - a one-time marker file ~/.tale-mode-allow-cwd-root  (`touch` it once) — REQUIRED on Codex,
+#     whose hook subprocesses do NOT inherit the host env config ([shell_environment_policy.set]),
+#     so the env var alone never reaches the hook (verified via a live probe).
+# Both are USER grants in the user's own home/host, not an agent's transient shell. With neither
+# present, the path below is byte-identical to v1 (CLAUDE_PROJECT_DIR or nothing). On Claude Code
+# CLAUDE_PROJECT_DIR is always set, so this branch is never taken — CC stays strict. We accept only
+# an absolute, existing directory, so a relative/empty/garbage cwd can never resolve to a root.
 ROOT="${CLAUDE_PROJECT_DIR:-}"
-if [ -z "$ROOT" ] && [ "${TALE_ALLOW_CWD_ROOT:-}" = "1" ] && command -v jq >/dev/null 2>&1; then
+if [ -z "$ROOT" ] && { [ "${TALE_ALLOW_CWD_ROOT:-}" = "1" ] || [ -f "${HOME:-}/.tale-mode-allow-cwd-root" ]; } && command -v jq >/dev/null 2>&1; then
   ROOT=$(printf '%s' "$INPUT" | jq -r '.cwd // ""' 2>/dev/null || true)
   case "$ROOT" in
     /*) [ -d "$ROOT" ] || ROOT="" ;;
@@ -88,7 +90,7 @@ fi
 # Phase C — committed-config phase auto-arm (gated). This ENTIRE block is skipped unless a
 # session-scoped phase marker exists, so a normal turn's decision path is byte-identical to v1
 # (Invariant 5). When a DELIBERATE build phase is active for THIS session (the
-# /tale-mode:kickoff-phase UserPromptExpansion hook wrote .claude/tale-mode.phase.$SID.json)
+# /tale-mode:kickoff-phase UserPromptSubmit hook wrote .claude/tale-mode.phase.$SID.json)
 # AND the repo ships a .claude/tale-mode.json whose content-hash you've TRUSTED AND the working
 # tree is dirty, the loop arms ITSELF on that committed config's `gates` — no agent memory, so it
 # can't be forgotten. The committed gates are checked FIRST and block independently, so an ad-hoc
