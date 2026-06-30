@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# tale-mode — tests for the phase-marker hook (UserPromptExpansion).
+# tale-mode — tests for the phase-marker hook (UserPromptSubmit; cross-platform).
 #
-# The hook fires when a slash command expands and the command name matches
-# tale-mode:kickoff-phase. It must: write a session-scoped marker
+# The hook fires on every UserPromptSubmit; it acts only when the prompt is a
+# /tale-mode:kickoff-phase invocation (or a host supplies command_name). It must: write a session-scoped marker
 # .claude/tale-mode.phase.$SID.json on the kickoff command; be idempotent (a re-kickoff must
 # NOT reset the round counter); never act on a different command, an absent/invalid session id,
 # or unparseable input; and ALWAYS exit 0 writing nothing to stdout/stderr (it must never block
@@ -14,6 +14,7 @@ ok() { if eval "$2"; then PASS=$((PASS+1)); printf 'ok   - %s\n' "$1"; else FAIL
 
 newwork(){ WORK=$(mktemp -d); mkdir -p "$WORK/.claude"; }
 mk(){ printf '{"session_id":"%s","command_name":"%s","command_args":"docs/p.md \\"Phase C\\"","cwd":"%s"}' "$1" "$2" "$WORK"; }
+mkp(){ printf '{"session_id":"%s","prompt":"%s","cwd":"%s"}' "$1" "$2" "$WORK"; }   # UserPromptSubmit shape (both runtimes)
 mfile(){ echo "$WORK/.claude/tale-mode.phase.$1.json"; }
 
 echo "1) kickoff command -> writes a session-scoped marker (exit 0, no stdout)"
@@ -75,6 +76,26 @@ OUT=$(mk "sid-5" "tale-mode:kickoff-phase" | PATH="$STUB:/usr/bin:/bin" CLAUDE_P
 ok "exit 0 with broken jq"   '[ "$RC" -eq 0 ]'
 ok "no marker with broken jq" '[ ! -f "$(mfile sid-5)" ]'
 rm -rf "$STUB"
+
+echo "10) UserPromptSubmit prompt IS a kickoff -> writes the marker (the cross-platform path)"
+newwork
+OUT=$(mkp "sid-10" "/tale-mode:kickoff-phase docs/p.md PhaseC" | CLAUDE_PROJECT_DIR="$WORK" bash "$HOOK"); RC=$?
+ok "exit 0"                   '[ "$RC" -eq 0 ]'
+ok "no stdout"                '[ -z "$OUT" ]'
+ok "marker written"           '[ -f "$(mfile sid-10)" ]'
+ok "marker rounds=0"          '[ "$(jq -r .rounds "$(mfile sid-10)")" = "0" ]'
+
+echo "11) UserPromptSubmit ORDINARY prompt -> NO marker (fires every prompt, must stay silent)"
+newwork
+OUT=$(mkp "sid-11" "how do I add a rate limit to signup" | CLAUDE_PROJECT_DIR="$WORK" bash "$HOOK"); RC=$?
+ok "exit 0"                   '[ "$RC" -eq 0 ]'
+ok "no marker"                '[ ! -f "$(mfile sid-11)" ]'
+ok "claude dir stayed empty"  '[ -z "$(ls "$WORK/.claude/" 2>/dev/null)" ]'
+
+echo "12) UserPromptSubmit kickoff under a DIFFERENT namespace -> marker written (namespace-robust)"
+newwork
+mkp "sid-12" "/othermarket:kickoff-phase plan.md PhaseZ" | CLAUDE_PROJECT_DIR="$WORK" bash "$HOOK"
+ok "marker written"           '[ -f "$(mfile sid-12)" ]'
 
 printf '\nPASS=%s FAIL=%s\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

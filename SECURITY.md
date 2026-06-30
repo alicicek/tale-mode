@@ -41,13 +41,14 @@ The complete, reviewable surface (all under `plugins/tale-mode/`):
   foundation-first / two-strike) for Claude to read. It reads no repo files, runs no project input,
   makes no network calls, needs nothing beyond the ubiquitous `cat`, and always exits 0 — it can
   never block.
-- `hooks/mark-phase.sh` + `hooks/hooks.json` — the **phase-marker hook** (a UserPromptExpansion
-  hook). When you run `/tale-mode:kickoff-phase`, it writes a session-scoped
-  `.claude/tale-mode.phase.<id>.json` so the Stop hook knows a deliberate build phase is active
-  (this is what gates the committed-config auto-arm above). It reads only the hook payload, writes
-  only that marker, makes no network calls, and **always exits 0 with no output** — it can never
-  block or alter your command. (This event is Claude-Code-specific; Codex has no command-expansion
-  event, so there the loop arms from the agent-written `.claude/active-goal.json` instead.)
+- `hooks/mark-phase.sh` + `hooks/hooks.json` — the **phase-marker hook** (a UserPromptSubmit hook,
+  valid on both Claude Code and Codex). It runs on every prompt and acts only when the prompt is a
+  `/tale-mode:kickoff-phase` invocation, writing a session-scoped `.claude/tale-mode.phase.<id>.json`
+  so the Stop hook knows a deliberate build phase is active (this is what gates the committed-config
+  auto-arm above). It reads only the hook payload, writes only that marker, makes no network calls,
+  and **always exits 0 with no output** — it can never block or alter your prompt. (On Codex the
+  kickoff is invoked as a skill whose prompt may not carry the trigger text, so there the loop's
+  reliable arming path is the agent-written `.claude/active-goal.json`.)
 - `output-styles/tale-mode.md` — an **opt-in** output style (you select it via `/config`): plain
   Markdown instructions that shape how Claude works, inert until you choose it.
 - `agents/plan-reviewer.md` — a subagent granted `Bash` + `WebFetch`. These run only when you

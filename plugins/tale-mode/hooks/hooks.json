@@ -11,9 +11,8 @@
         ]
       }
     ],
-    "UserPromptExpansion": [
+    "UserPromptSubmit": [
       {
-        "matcher": "tale-mode:kickoff-phase",
         "hooks": [
           {
             "type": "command",

@@ -88,7 +88,7 @@ fi
 # Phase C — committed-config phase auto-arm (gated). This ENTIRE block is skipped unless a
 # session-scoped phase marker exists, so a normal turn's decision path is byte-identical to v1
 # (Invariant 5). When a DELIBERATE build phase is active for THIS session (the
-# /tale-mode:kickoff-phase UserPromptExpansion hook wrote .claude/tale-mode.phase.$SID.json)
+# /tale-mode:kickoff-phase UserPromptSubmit hook wrote .claude/tale-mode.phase.$SID.json)
 # AND the repo ships a .claude/tale-mode.json whose content-hash you've TRUSTED AND the working
 # tree is dirty, the loop arms ITSELF on that committed config's `gates` — no agent memory, so it
 # can't be forgotten. The committed gates are checked FIRST and block independently, so an ad-hoc

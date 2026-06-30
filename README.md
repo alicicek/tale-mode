@@ -310,7 +310,7 @@ a handful of files you can skim in a few minutes.
      `~/.claude/tale-mode-trust`** — a manual, user-only step; the hook never self-trusts. Read
      [`plugins/tale-mode/hooks/stop-goal-loop.sh`](plugins/tale-mode/hooks/stop-goal-loop.sh)
      (~295 lines) so you know exactly what runs and when.
-  4. the **phase-marker hook** (`mark-phase.sh`, a UserPromptExpansion hook) writes a session-scoped
+  4. the **phase-marker hook** (`mark-phase.sh`, a UserPromptSubmit hook) writes a session-scoped
      `.claude/tale-mode.phase.<id>.json` when you run `/tale-mode:kickoff-phase`, so the Stop hook
      knows a build phase is active. It only writes that marker and always exits 0 with no output.
   5. the **Layer-2 governor** is a **read-only** (`Read`/`Grep`/`Glob`) Sonnet hook — it can
@@ -382,7 +382,7 @@ tale-mode/                                 (repo — also the plugin marketplace
     │   ├── commands/                      # /tale-mode:plan-phase · /tale-mode:kickoff-phase
     │   ├── agents/plan-reviewer.md        # the independent adversarial reviewer
     │   ├── hooks/
-    │   │   ├── hooks.json                 # wires the Stop + SessionStart + UserPromptExpansion hooks
+    │   │   ├── hooks.json                 # wires the Stop + SessionStart + UserPromptSubmit hooks
     │   │   ├── stop-goal-loop.sh          # goal loop + committed-config auto-arm (Layer 1)
     │   │   ├── session-start.sh           # always-on discipline injection (SessionStart)
     │   │   └── mark-phase.sh              # writes the phase marker on /tale-mode:kickoff-phase
