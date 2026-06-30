@@ -1,6 +1,6 @@
 ---
 name: plan-phase
-description: Plan a large, multi-phase feature to a high bar — verify against the code, receipts on every decision, an adversarial fresh-eyes review, and runnable verification gates, decomposed into independently-shippable phases. Invoke explicitly when starting a big multi-session build (the cross-platform form of the /tale-mode:plan-phase command; on Codex, name the task in your prompt).
+description: Plan a large, multi-phase feature to a high bar — verify against the code, receipts on every decision, an adversarial fresh-eyes review, and runnable verification gates, decomposed into independently-shippable phases. Invoke explicitly when starting a big multi-session build (the cross-platform form of the /tale-mode:plan-phase command; on Codex, name the task in your prompt). On Claude Code, use the /tale-mode:plan-phase command instead of this skill.
 ---
 
 # Plan a phase (high bar)

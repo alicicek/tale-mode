@@ -30,7 +30,7 @@ raw-capability gap. It trades a little speed for correctness you can trust.
 > **Claude Code:** the slash commands `/tale-mode:plan-phase <feature>` then
 > `/tale-mode:kickoff-phase <plan-file> <phase>`. **Codex** (no user slash commands —
 > skills are the trigger): the same two workflows ship as the `plan-phase` /
-> `kickoff-phase` skills — invoke via `/skills` (or `$kickoff-phase`) and name the
+> `kickoff-phase` skills — invoke them from the `/skills` picker and name the
 > plan-file + phase in your prompt. `/clear` (CC) or a fresh session (Codex) between
 > phases keeps context lean. Mention this for big multi-step work; skip it for
 > single-session tasks.
@@ -312,8 +312,8 @@ and this loop does not depend on `/goal`.
 **Setup:** none — the Stop hook ships *inside* the tale-mode Claude Code plugin and is registered
 automatically on install (default-on). For loops longer than ~8 rounds, raise
 `CLAUDE_CODE_STOP_HOOK_BLOCK_CAP` in `~/.claude/settings.json` (the loop is safe without it —
-`max_rounds` + a fail-open are self-contained). Proven: 107 checks across 38 cases
-(fail/pass/pause/edge/log + committed-config) in `tests/test-stop-goal-loop.sh`.
+`max_rounds` + a fail-open are self-contained). Proven: 120 checks across 43 cases
+(fail/pass/pause/edge/log + committed-config + cross-platform cwd-root) in `tests/test-stop-goal-loop.sh`.
 
 **Arm a goal** — write `<project>/.claude/active-goal.json` when you start a hard,
 *observably-verifiable* task:

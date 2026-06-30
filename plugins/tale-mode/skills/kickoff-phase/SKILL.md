@@ -1,6 +1,6 @@
 ---
 name: kickoff-phase
-description: Build ONE scoped phase of an existing multi-phase plan in a fresh session — re-verify the plan against the live code, interview the user sharply on real forks, then implement only that phase behind plan-mode approval with runnable verification and a fresh-eyes review. Invoke explicitly when starting a phase (the cross-platform form of /tale-mode:kickoff-phase; on Codex, name the plan-file + phase in your prompt).
+description: Build ONE scoped phase of an existing multi-phase plan in a fresh session — re-verify the plan against the live code, interview the user sharply on real forks, then implement only that phase behind plan-mode approval with runnable verification and a fresh-eyes review. Invoke explicitly when starting a phase (the cross-platform form of /tale-mode:kickoff-phase; on Codex, name the plan-file + phase in your prompt). On Claude Code, use the /tale-mode:kickoff-phase command instead of this skill.
 ---
 
 # Kick off a phase
