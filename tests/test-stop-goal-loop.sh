@@ -97,11 +97,12 @@ ok "NOT blocking"      '! printf "%s" "$OUT" | jq -e ".decision==\"block\"" >/de
 ok "file cleared"      '[ ! -f "$(gf)" ]'
 ok "no-usable-check msg" 'printf "%s" "$OUT" | jq -r ".systemMessage" | grep -q "no usable check"'
 
-echo "12) CLAUDE_PROJECT_DIR unset -> no-op (never arms against a cwd-controlled path)"
-newwork; arm '{"goal":"g","check":"false","rounds":0,"max_rounds":25}'
-OUT=$(printf '{"cwd":"%s","stop_hook_active":false,"hook_event_name":"Stop"}' "$WORK" | env -u CLAUDE_PROJECT_DIR bash "$HOOK"); RC=$?
+echo "12) CLAUDE_PROJECT_DIR unset + no opt-in -> no-op (never arms against a cwd-controlled path)"
+newwork; arm '{"goal":"g","check":"false","rounds":0,"max_rounds":25}'; HM12=$(mktemp -d)   # clean HOME (no opt-in marker file)
+OUT=$(printf '{"cwd":"%s","stop_hook_active":false,"hook_event_name":"Stop"}' "$WORK" | env -u CLAUDE_PROJECT_DIR -u TALE_ALLOW_CWD_ROOT HOME="$HM12" bash "$HOOK"); RC=$?
 ok "exit 0"            '[ "$RC" -eq 0 ]'
 ok "NOT blocking"      '! printf "%s" "$OUT" | jq -e ".decision==\"block\"" >/dev/null 2>&1'
+rm -rf "$HM12"
 
 echo "13) session-scoped: a goal armed by session A does NOT trap session B"
 newwork
