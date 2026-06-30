@@ -19,33 +19,40 @@ work — it enforces the disciplines strong models skip when they rush.
 raw-capability gap. It trades a little speed for correctness you can trust.
 
 > **Platform note.** Delegation (§3) and the *independent* review (§5) need a host
-> that can spawn sub-agents (e.g. Claude Code). On hosts that can't (e.g. the
-> claude.ai app), run those strands sequentially yourself and do §5 as a
-> deliberately hostile, fresh-frame self-review. Everything else applies as-is.
+> that can spawn sub-agents (Claude Code and OpenAI Codex both can). On hosts that
+> can't (e.g. the claude.ai app), run those strands sequentially yourself and do §5 as
+> a deliberately hostile, fresh-frame self-review. Everything else applies as-is.
 
-> **Claude Code commands.** For a large, multi-phase feature, drive it through the
-> pipeline instead of one long session: `/tale-mode:plan-phase <feature>` writes an approved
-> plan decomposed into independently-shippable phases, then `/tale-mode:kickoff-phase
-> <plan-file> <phase>` builds one phase per fresh session (it enters plan mode,
-> re-verifies the plan against current code, and waits for approval before editing).
-> `/clear` between phases keeps each session's context lean. Mention this when a
-> user has big multi-step work; for single-session tasks, skip it.
+> **Phase pipeline (per host).** For a large, multi-phase feature, drive it through the
+> pipeline instead of one long session — it writes an approved plan decomposed into
+> independently-shippable phases, then builds one phase per fresh session (enter plan
+> mode, re-verify the plan against current code, wait for approval before editing).
+> **Claude Code:** the slash commands `/tale-mode:plan-phase <feature>` then
+> `/tale-mode:kickoff-phase <plan-file> <phase>`. **Codex** (no user slash commands —
+> skills are the trigger): the same two workflows ship as the `plan-phase` /
+> `kickoff-phase` skills — invoke via `/skills` (or `$kickoff-phase`) and name the
+> plan-file + phase in your prompt. `/clear` (CC) or a fresh session (Codex) between
+> phases keeps context lean. Mention this for big multi-step work; skip it for
+> single-session tasks.
 
-> **Claude Code verification gate.** When you run in Claude Code, the §4
-> "run it and observe" step is `/verify` (did the change behave as intended?) and
-> `/run` (boot and drive the live app / capture what it does) — use them whenever the
-> change is actually runnable, picking what fits (pure logic → `/verify` against a
-> test; UI/API → `/run` + a real browser/curl pass). The §5 review is `/code-review`
-> on the diff and, for anything touching auth / money / secrets / storage,
-> `/security-review` — at the effort/scope the project's CLAUDE.md sets. **Both are
-> bundled Claude Code skills: invoke them yourself via the Skill tool (they're
-> model-invocable by default; `/code-review` reviews the *local* diff — pass
-> `<base>...<branch>`, no PR needed). Actually run them — they're the gate; the
-> fresh-eyes `plan-reviewer` complements them, never substitutes.** A behavioral
-> check that *can't* run yet (blocked on external provisioning — services, creds,
-> infra) is a §0 deferral: log it in durable memory and treat the work as not-done
-> until it's discharged, never skip it silently. On hosts without these commands, do
-> the equivalent by hand.
+> **Verification gate (per host).** The §4 "run it and observe" and §5 review steps map
+> to different tools per runtime — run the equivalent, never skip it.
+> **Claude Code:** §4 = `/verify` (did the change behave?) + `/run` (boot/drive the live
+> app), picking what fits (pure logic → `/verify` against a test; UI/API → `/run` + a real
+> browser/curl pass); §5 = `/code-review` on the diff (pass `<base>...<branch>`, no PR
+> needed) and, for auth / money / secrets / storage, `/security-review` — both are bundled,
+> model-invocable skills, invoked via the Skill tool.
+> **Codex:** §4 = run the test / drive the app yourself and observe (there is no `/verify`
+> or `/run` skill); §5 routine = a **free fresh-context sub-agent** review (Codex can spawn
+> one — frame it hostile), plus the bundled **`codex-security`** skills for auth / money /
+> secrets / storage.
+> **Both hosts:** a *cross-model metered* reviewer — Greptile, or the **CodeRabbit**
+> `code-review` skill on Codex — is the strongest §5 pass but is **owner-triggered: never
+> auto-run, comment `@…`, or push-loop it (each trigger costs real money).** Surface it; let
+> the owner spend it. The fresh-eyes `plan-reviewer` complements the gate, never substitutes.
+> Actually run the gate. A behavioral check that *can't* run yet (blocked on external
+> provisioning — services, creds, infra) is a §0 deferral: log it in durable memory and treat
+> the work as not-done until discharged, never skip it silently.
 
 ## 0. Right-size first — before anything else
 

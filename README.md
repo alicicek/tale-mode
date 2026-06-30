@@ -181,7 +181,7 @@ plugin; there's nothing to wire up.
   a deploy, a go/no-go — instead of grinding the impossible. **Silent on any normal
   (non-phase, clean) turn.** When armed, it appends one JSONL verdict line per round to a local
   `.claude/tale-mode.log` audit trail (disable with `TALE_VERDICT_LOG=/dev/null`).
-  107 tests cover the fail/pass/pause/edge/log paths (incl. the committed-config trust/dirty/precedence cases).
+  120 tests cover the fail/pass/pause/edge/log paths (incl. the committed-config trust/dirty/precedence and cross-platform cwd-root cases).
 - **Layer 2 — the governor** (optional, *separate* plugin): a **read-only** `type:"agent"` Stop hook
   pinned to **Sonnet** that, once the agent is *stuck* (≥ 2 rounds), reads the plan/code with a fresh
   adversarial frame and names the unverified foundation, a violated documented constraint, or a
@@ -215,6 +215,17 @@ that env var. For loops that legitimately need more, raise it once in `~/.claude
 
 The loop is safe without this — `max_rounds` + the fail-open are self-contained; the cap is
 just a belt.
+
+**Cross-platform (Claude Code + Codex).** The skill and the autonomous loop run on both Claude
+Code and OpenAI Codex (which loads Claude-format plugins). On Codex the loop arms from the
+agent-written `.claude/active-goal.json` — Codex has no command-expansion event, so the
+deterministic `/tale-mode:kickoff-phase` auto-arm is Claude-Code-only. And because Codex does
+not export `CLAUDE_PROJECT_DIR`, the Stop hook stays **inert** there until you opt in with
+**`TALE_ALLOW_CWD_ROOT=1`** in `~/.codex/config.toml` under `[shell_environment_policy.set]` — a
+user-only grant that lets the hook resolve the project root from the session `cwd` (validated
+absolute + existing). Enable it once you've confirmed the Stop-payload `cwd` is your stable
+workspace root. The phase commands surface as the `plan-phase` / `kickoff-phase` **skills** on
+Codex (no user slash commands there).
 
 **Honest scope.** This buys *autonomy*, not IQ. Verified live (`claude -p`): the
 block→re-turn loop, multi-round iteration, `max_rounds` give-up, the agent self-arming a
@@ -361,7 +372,7 @@ tale-mode/                                 (repo — also the plugin marketplace
 │   ├── autonomous-loop-design.md          #   design rationale + honest build log
 │   └── HOOKS.md                           #   optional deterministic typecheck/lint gates
 ├── tests/
-│   ├── test-stop-goal-loop.sh             # tests for the Stop loop hook (107 checks / 38 cases)
+│   ├── test-stop-goal-loop.sh             # tests for the Stop loop hook (120 checks / 43 cases)
 │   ├── test-session-start.sh              # tests for the SessionStart hook
 │   └── test-mark-phase.sh                 # tests for the phase-marker hook
 └── plugins/
