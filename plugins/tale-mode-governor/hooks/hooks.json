@@ -1,5 +1,4 @@
 {
-  "description": "tale-mode governor — optional companion to the tale-mode plugin. A read-only Sonnet Stop hook that, once the autonomous goal loop is stuck (rounds >= 2), reviews the plan/code with a fresh adversarial frame and blocks with one concrete steer. Requires the tale-mode plugin (which ships the Layer-1 loop that arms the goal-file this reads). Adds a per-turn model call while enabled.",
   "hooks": {
     "Stop": [
       {
