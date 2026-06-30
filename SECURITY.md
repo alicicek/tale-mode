@@ -32,10 +32,12 @@ The complete, reviewable surface (all under `plugins/tale-mode/`):
   **Project root:** on Claude Code the hook anchors on `CLAUDE_PROJECT_DIR` and never trusts the hook
   payload's `cwd` for a blocking decision (a stray sibling goal-file must not trap an unrelated turn).
   On a runtime that doesn't export `CLAUDE_PROJECT_DIR` (e.g. Codex) the loop stays **inert** unless you
-  set **`TALE_ALLOW_CWD_ROOT=1`** in the host's env config — a deliberate, user-only grant (the agent
-  cannot set it for the hook mid-turn) that lets the hook resolve the root from `cwd` (validated as an
-  absolute, existing directory). Off by default; enable it only after confirming, on that runtime, that
-  the Stop-payload `cwd` is the stable workspace root.
+  opt in for that runtime — either **`TALE_ALLOW_CWD_ROOT=1`** in the host env (Claude Code) **or** a
+  one-time marker file **`~/.tale-mode-allow-cwd-root`** (required on Codex, whose hook subprocesses do
+  not inherit the host env config, so the env var never reaches the hook). Either is a deliberate user
+  grant in your own home/host; it lets the hook resolve the root from `cwd` (validated as an absolute,
+  existing directory). Off by default; enable it only after confirming the Stop-payload `cwd` is the
+  stable workspace root.
 - `hooks/session-start.sh` + `hooks/hooks.json` — the always-on **SessionStart hook**. On every
   session start it prints a short, fixed reminder of the core disciplines (verify-against-source /
   foundation-first / two-strike) for Claude to read. It reads no repo files, runs no project input,

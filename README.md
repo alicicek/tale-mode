@@ -218,14 +218,14 @@ just a belt.
 
 **Cross-platform (Claude Code + Codex).** The skill and the autonomous loop run on both Claude
 Code and OpenAI Codex (which loads Claude-format plugins). On Codex the loop arms from the
-agent-written `.claude/active-goal.json` — Codex has no command-expansion event, so the
-deterministic `/tale-mode:kickoff-phase` auto-arm is Claude-Code-only. And because Codex does
-not export `CLAUDE_PROJECT_DIR`, the Stop hook stays **inert** there until you opt in with
-**`TALE_ALLOW_CWD_ROOT=1`** in `~/.codex/config.toml` under `[shell_environment_policy.set]` — a
-user-only grant that lets the hook resolve the project root from the session `cwd` (validated
-absolute + existing). Enable it once you've confirmed the Stop-payload `cwd` is your stable
-workspace root. The phase commands surface as the `plan-phase` / `kickoff-phase` **skills** on
-Codex (no user slash commands there).
+agent-written `.claude/active-goal.json` (the marker hook runs on Codex too, but a kickoff invoked
+as a *skill* there may not carry the trigger text, so the goal-file is the reliable path). And
+because Codex does not export `CLAUDE_PROJECT_DIR` — and its hook subprocesses don't inherit the
+host env config — you opt the loop in there with a one-time marker file: **`touch
+~/.tale-mode-allow-cwd-root`** (on Claude Code, `TALE_ALLOW_CWD_ROOT=1` also works). That lets the
+hook resolve the project root from the session `cwd` (validated absolute + existing); enable it
+once you've confirmed that `cwd` is your stable workspace root. The phase commands surface as the
+`plan-phase` / `kickoff-phase` **skills** on Codex (no user slash commands there).
 
 **Honest scope.** This buys *autonomy*, not IQ. Verified live (`claude -p`): the
 block→re-turn loop, multi-round iteration, `max_rounds` give-up, the agent self-arming a
