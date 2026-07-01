@@ -54,9 +54,24 @@ Tale Mode is a checklist-as-skill that targets each of these.
 
 ## How it works
 
-A **right-size throttle** decides how much process a task earns (and, for big work,
-how many phases to split it into) — so trivial work stays fast. Above that floor it
-runs an 8-step loop:
+Three layers, built on one observation: instructions can be ignored by a rushing model,
+but hooks can't. *Words drift; hooks don't.*
+
+```text
+A · INSTRUCTIONS   the method the model reads      skill · phase commands · output style
+B · ENFORCEMENT    deterministic bash hooks        session-start · phase marker · the Stop-hook loop
+C · REVIEW         eyes that aren't the author's   plan-reviewer agent · optional governor
+```
+
+Layer A teaches the discipline. Layer B enforces the parts that can be enforced — the
+core rules injected into every session, and a turn that *cannot end* until a real check
+passes. Layer C exists because a model fixes a bug instantly in *someone else's* code yet
+misses the same bug in its own — so the reviewer is a fresh context, ideally a different
+model. (Full walkthrough: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).)
+
+Within Layer A, a **right-size throttle** decides how much process a task earns (and, for
+big work, how many phases to split it into) — so trivial work stays fast. Above that
+floor it runs an 8-step loop:
 
 | # | Step | What it forces |
 |---|------|----------------|
@@ -346,7 +361,13 @@ Found a problem? See [`SECURITY.md`](SECURITY.md).
 
 ## Tuning — effort & orchestration
 
-Two independent dials, once it's running:
+- **Model pairing.** Run the *worker* on the strongest reasoning model you have — the
+  method spends capability on fan-out and verification. Keep the *reviewer* on a
+  **different** model than the worker (the bundled `plan-reviewer` pins one for exactly
+  this reason): different training means different blind spots, and the deterministic
+  gate — a real test's exit code — stays the final arbiter because it has none.
+
+Two more independent dials, once it's running:
 
 - **Effort = reasoning depth.** Default **xhigh** for planning, review, and
   execution — deep but responsive. Use **max** only for the single hardest
@@ -386,6 +407,7 @@ tale-mode/                                 (repo — also the plugin marketplace
 │   └── marketplace.json                   # makes the repo installable via /plugin
 ├── README.md · LICENSE · SECURITY.md
 ├── docs/                                  # rationale + notes (not shipped in the plugin)
+│   ├── ARCHITECTURE.md                    #   the map: layers, loop mechanics, trust model
 │   ├── autonomous-loop-design.md          #   design rationale + build log
 │   ├── autonomous-loop-v2-design.md       #   v2 (committed-config auto-arm) design
 │   ├── codex-governor-spike.md            #   Codex governor go/no-go research note
