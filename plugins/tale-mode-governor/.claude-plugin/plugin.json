@@ -2,8 +2,8 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "tale-mode-governor",
   "displayName": "Tale Mode — Governor",
-  "version": "1.1.0",
-  "description": "Optional companion to the tale-mode plugin: a read-only Sonnet \"governor\" that breaks anchoring when the autonomous goal loop gets stuck (>= 2 rounds). Adds a small per-turn model call — install only if you want it.",
+  "version": "1.2.0",
+  "description": "Optional companion to the tale-mode plugin: a read-only \"governor\" that breaks anchoring when the autonomous goal loop gets stuck (>= 2 rounds). On Claude Code it is a read-only Sonnet agent hook; on Codex it spawns one OS-sandboxed read-only `codex exec` reviewer (sentinel-guarded against recursion) and surfaces its finding as an advisory systemMessage. Adds a model call when stuck — install only if you want it.",
   "author": {
     "name": "Ali Cicek",
     "url": "https://github.com/alicicek"

@@ -36,7 +36,8 @@ Keep only commands that are **hermetic and terminating**:
   that rewrites files — a gate must be read-only/idempotent, it runs repeatedly)
 - ❌ anything slow enough to hurt: the default per-gate timeout is 120s (`TALE_CHECK_TIMEOUT`);
   a 10-minute suite belongs in CI, not a turn-end gate
-- Each gate must be **ONE single-line shell command** (the hook reads them line-wise).
+- Each gate runs as **ONE shell script** — a multi-line JSON string is allowed (it executes as a
+  single script, not split per line), but prefer one command per gate for readable failure output.
 
 ## 3. Verify each candidate by RUNNING it, then present
 

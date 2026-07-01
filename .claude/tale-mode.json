@@ -1,5 +1,5 @@
 {
-  "_note": "tale-mode's own committed gate config (it eats its own dog food). During a /tale-mode:kickoff-phase phase with uncommitted changes, the Stop hook (plugins/tale-mode/hooks/stop-goal-loop.sh) runs these gates and refuses to end the turn until they pass — BUT only after you trust this file's content-hash (it is inert until then; see SECURITY.md). Each gate is ONE single-line shell command. All gates are hermetic: local, no network, no fresh deps. verify-cross-platform.sh is the canonical repo gate: all 4 unit suites + plugin validate + Codex parse/engagement checks.",
+  "_note": "tale-mode's own committed gate config (it eats its own dog food). During a /tale-mode:kickoff-phase phase with uncommitted changes, the Stop hook (plugins/tale-mode/hooks/stop-goal-loop.sh) runs these gates and refuses to end the turn until they pass — BUT only after you trust this file's content-hash (it is inert until then; see SECURITY.md). Each gate runs as ONE shell script (multi-line values allowed; NUL-delimited). All gates are hermetic: local, no network, no fresh deps. verify-cross-platform.sh is the canonical repo gate: all 4 unit suites + plugin validate + Codex parse/engagement checks.",
   "gates": [
     "bash tests/verify-cross-platform.sh"
   ]

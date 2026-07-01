@@ -19,7 +19,7 @@ act; an agent (or a cloned repo) doing it on their behalf defeats the security m
 ## 1. The committed-gate trust store — `~/.claude/tale-mode-trust`
 
 **What it gates.** A repo may commit `.claude/tale-mode.json` with a `gates` list (arbitrary shell,
-one single-line command each). During a deliberate kickoff phase with uncommitted changes, the Stop
+each entry running as one script). During a deliberate kickoff phase with uncommitted changes, the Stop
 hook (`hooks/stop-goal-loop.sh`) runs those gates and blocks the turn until they're green — but
 **only if the file's exact content-hash is listed in the trust store**. No listed hash → the gates
 never execute; the hook instead shows a one-time "review and trust" notice containing the hash.

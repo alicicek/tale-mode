@@ -396,6 +396,71 @@ ok "exit 0"                          '[ "$RC" -eq 0 ]'
 ok "no block (a phase is always session-scoped)" '! printf "%s" "$OUT" | jq -e ".decision==\"block\"" >/dev/null 2>&1'
 ok "pending file left for a session that CAN claim it" '[ -f "$(pend)" ]'
 
+echo "50) no-progress stop OFF by default: identical failures keep blocking (no disarm, no np fields)"
+newwork; arm '{"goal":"g","check":"false","rounds":0,"max_rounds":25}'
+run; run; run
+ok "round 3 still blocks"            'printf "%s" "$OUT" | jq -e ".decision==\"block\"" >/dev/null'
+ok "rounds=3 (marched on)"           '[ "$(jq -r .rounds "$(gf)")" = "3" ]'
+ok "no np fields written when off"   '[ "$(jq -r ".np_sig // \"absent\"" "$(gf)")" = "absent" ]'
+
+echo "51) TALE_NO_PROGRESS_N=2: two IDENTICAL failures -> disarm cleanly with a NO PROGRESS message"
+newwork; arm '{"goal":"g","check":"false","rounds":0,"max_rounds":25}'
+nprun(){ OUT=$(printf '{"session_id":"%s","cwd":"%s","stop_hook_active":false,"hook_event_name":"Stop"}' "$SID" "$WORK" \
+          | TALE_NO_PROGRESS_N=2 CLAUDE_PROJECT_DIR="$WORK" bash "$HOOK"); RC=$?; }
+nprun
+ok "round 1 blocks (streak 1)"       'printf "%s" "$OUT" | jq -e ".decision==\"block\"" >/dev/null'
+ok "np fields persisted"             '[ "$(jq -r .np_streak "$(gf)")" = "1" ]'
+nprun
+ok "round 2: NO PROGRESS disarm (allow)"  '! printf "%s" "$OUT" | jq -e ".decision==\"block\"" >/dev/null 2>&1'
+ok "NO PROGRESS message"             'printf "%s" "$OUT" | jq -r ".systemMessage" | grep -q "NO PROGRESS"'
+ok "goal-file cleared"               '[ ! -f "$(gf)" ]'
+
+echo "52) TALE_NO_PROGRESS_N=2: CHANGING output resets the streak -> keeps blocking past N rounds"
+newwork; arm "{\"goal\":\"g\",\"check\":\"cat $WORK/n.txt; false\",\"rounds\":0,\"max_rounds\":25}"
+echo one > "$WORK/n.txt";   nprun
+echo two > "$WORK/n.txt";   nprun
+echo three > "$WORK/n.txt"; nprun
+ok "round 3 still blocks (signature changed each round)" 'printf "%s" "$OUT" | jq -e ".decision==\"block\"" >/dev/null'
+ok "streak stayed at 1"              '[ "$(jq -r .np_streak "$(gf)")" = "1" ]'
+ok "rounds=3"                        '[ "$(jq -r .rounds "$(gf)")" = "3" ]'
+
+echo "53) phase path + TALE_NO_PROGRESS_N=2: same committed gate failing identically twice -> disarm phase"
+cwork; cmark 0; ccfg '{"gates":["false"]}'; ctrust; cdirty
+npcrun(){ OUT=$(printf '{"session_id":"%s","cwd":"%s","stop_hook_active":false,"hook_event_name":"Stop"}' "$CSID" "$WORK" \
+           | TALE_NO_PROGRESS_N=2 CLAUDE_PROJECT_DIR="$WORK" TALE_TRUST_STORE="$CTRUST" bash "$HOOK" 2>"$CERR"); RC=$?; }
+npcrun
+ok "phase round 1 blocks"            'printf "%s" "$OUT" | jq -e ".decision==\"block\"" >/dev/null'
+npcrun
+ok "phase round 2: NO PROGRESS disarm" 'printf "%s" "$OUT" | jq -r ".systemMessage" | grep -q "NO PROGRESS"'
+ok "marker deleted (phase disarmed)" '[ ! -f "$(pf)" ]'
+
+echo '54) knob hardening: TALE_NO_PROGRESS_N=0 / garbage -> feature OFF (normal block, no np fields)'
+newwork; arm '{"goal":"g","check":"false","rounds":0,"max_rounds":25}'
+OUT=$(printf '{"session_id":"%s","cwd":"%s","stop_hook_active":false,"hook_event_name":"Stop"}' "$SID" "$WORK" \
+      | TALE_NO_PROGRESS_N=0 CLAUDE_PROJECT_DIR="$WORK" bash "$HOOK"); RC=$?
+ok "N=0 -> still blocks"             'printf "%s" "$OUT" | jq -e ".decision==\"block\"" >/dev/null'
+OUT=$(printf '{"session_id":"%s","cwd":"%s","stop_hook_active":false,"hook_event_name":"Stop"}' "$SID" "$WORK" \
+      | TALE_NO_PROGRESS_N=abc CLAUDE_PROJECT_DIR="$WORK" bash "$HOOK"); RC=$?
+ok "N=abc -> still blocks"           'printf "%s" "$OUT" | jq -e ".decision==\"block\"" >/dev/null'
+ok "no np fields for bad knobs"      '[ "$(jq -r ".np_sig // \"absent\"" "$(gf)")" = "absent" ]'
+
+echo "55) multi-line gate runs as ONE script (NUL-delimited reader): both lines execute, fail reported as one gate"
+cwork; cmark 0; ccfg "{\"gates\":[\"touch $WORK/LINE1RAN\\ntest -f $WORK/NOPE\"]}"; ctrust; cdirty; crun
+ok "blocks (line 2 of the gate failed)"      'printf "%s" "$OUT" | jq -e ".decision==\"block\"" >/dev/null'
+ok "line 1 of the SAME gate executed first"  '[ -f "$WORK/LINE1RAN" ]'
+ok "log records the whole 2-line command as one gate" 'tail -n1 "$(vlog)" | jq -r .check | grep -c . | grep -q "^2$"'
+
+echo "56) governor-child guard: TALE_GOVERNOR_ACTIVE set -> instant silent no-op, goal untouched"
+newwork; arm '{"goal":"g","check":"false","rounds":0,"max_rounds":25}'
+OUT=$(printf '{"session_id":"%s","cwd":"%s","stop_hook_active":false,"hook_event_name":"Stop"}' "$SID" "$WORK" \
+      | TALE_GOVERNOR_ACTIVE=1 CLAUDE_PROJECT_DIR="$WORK" bash "$HOOK"); RC=$?
+ok "exit 0"                          '[ "$RC" -eq 0 ]'
+ok "silent (no block in the governor's child)" '[ -z "$OUT" ]'
+# Hook exits before it even CLAIMS the goal-file, so the legacy path is left exactly as armed
+# (never moved to the scoped path, check never ran, rounds still 0).
+ok "goal-file left unclaimed at the legacy path" '[ -f "$WORK/.claude/active-goal.json" ] && [ ! -f "$(gf)" ]'
+ok "rounds still 0 (check never ran)" '[ "$(jq -r .rounds "$WORK/.claude/active-goal.json")" = "0" ]'
+
 echo
 echo "RESULT: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

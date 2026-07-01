@@ -35,7 +35,26 @@
 # project-supplied input is the goal-file's `check` command.
 set -uo pipefail
 
+# Governor-child guard: when the L2 Codex governor spawns its read-only `codex exec` reviewer, it
+# exports TALE_GOVERNOR_ACTIVE=1 — and hooks fire inside `codex exec` (probe-proven), so WITHOUT
+# this the child would pointlessly re-run the parent's goal `check`/gates (bounded but wasted:
+# read-only sandbox blocks the round persist -> fail-open). The reviewer must never be gated;
+# exit before even reading stdin. On a normal turn this var is unset -> zero behavior change.
+[ -n "${TALE_GOVERNOR_ACTIVE:-}" ] && exit 0
+
 INPUT=$(cat 2>/dev/null || true)
+
+# --- no-progress stop (OFF by default; opt in with TALE_NO_PROGRESS_N=<positive int>) ---
+# When enabled, N consecutive FAILING rounds whose failure signature (command + exit code +
+# output tail) is byte-identical disarm the loop cleanly instead of grinding to max_rounds —
+# an unchanged failure is the signature of a stuck anchor, not progress. Signature is a cheap
+# cksum change-detector (not crypto; nothing security-relevant reads it). Unset/0/garbage, or
+# no cksum on PATH -> feature OFF and every code path below is untouched (Invariant 5).
+NP_N="${TALE_NO_PROGRESS_N:-}"
+case "$NP_N" in (''|*[!0-9]*) NP_N="" ;; esac
+[ -n "$NP_N" ] && [ "$((10#$NP_N))" -eq 0 ] && NP_N=""
+[ -n "$NP_N" ] && ! command -v cksum >/dev/null 2>&1 && NP_N=""
+_np_sig() { printf '%s' "$1" | cksum 2>/dev/null | tr -s ' \t' '-'; }
 
 # Project root. Claude Code exports CLAUDE_PROJECT_DIR for hooks; we anchor on it because it is the
 # TRUSTED project root and is NOT agent-controllable. By default we do NOT fall back to the hook
@@ -200,25 +219,49 @@ if [ -n "$PHASE_FILE" ] && [ -f "$PHASE_FILE" ] && command -v jq >/dev/null 2>&1
         fi
 
         # Run the committed gates IN ORDER; block on the FIRST red one. Same exec model as the
-        # goal-file `check`: arbitrary (trusted) shell from the project root, optional timeout. Each
-        # gate is ONE shell command (a multi-line JSON value would split on newlines). The gate runs
-        # with stdin from /dev/null so a gate that reads stdin (a test runner, `cat`, `read`) cannot
-        # drain the gate-list pipe and silently skip the gates after it.
+        # goal-file `check`: arbitrary (trusted) shell from the project root, optional timeout.
+        # NUL-delimited (jq appends NUL to each gate; read -d '' consumes to it), so a gate MAY
+        # span multiple lines — it runs as ONE shell script, never split on newlines. tostring
+        # keeps a degenerate non-string array element from failing the whole jq stream. The gate
+        # runs with stdin from /dev/null so a gate that reads stdin (a test runner, `cat`, `read`)
+        # cannot drain the gate-list pipe and silently skip the gates after it.
         TO=""; command -v timeout >/dev/null 2>&1 && TO="timeout ${TALE_CHECK_TIMEOUT:-120}"
         GATE_FAIL=""; GATE_RC=0; GATE_OUT=""
-        while IFS= read -r _gate; do
+        while IFS= read -r -d '' _gate; do
           [ -n "$_gate" ] || continue
           _out=$( cd "$ROOT" 2>/dev/null && $TO bash -c "$_gate" </dev/null 2>&1 ); _rc=$?
           if [ "$_rc" -ne 0 ]; then GATE_FAIL="$_gate"; GATE_RC=$_rc; GATE_OUT="$_out"; break; fi
-        done < <(jq -r '.gates[]?' "$CFG" 2>/dev/null)
+        done < <(jq -j '(.gates[]? | tostring) + "\u0000"' "$CFG" 2>/dev/null)
 
         if [ -n "$GATE_FAIL" ]; then
           GTAIL=$(printf '%s' "$GATE_OUT" | tail -c 1200)
+          # No-progress stop (mirrors the goal-file path; OFF unless TALE_NO_PROGRESS_N is set):
+          # N consecutive rounds failing the SAME gate the SAME way -> disarm the phase cleanly.
+          PSIG=""; PSTREAK=1
+          if [ -n "$NP_N" ]; then
+            PSIG=$(_np_sig "$GATE_FAIL|$GATE_RC|$GTAIL")
+            _posig=$(jq -r '.np_sig // ""' "$PHASE_FILE" 2>/dev/null || true)
+            _postr=$(jq -r '.np_streak // 0' "$PHASE_FILE" 2>/dev/null || echo 0)
+            case "$_postr" in (*[!0-9]*|'') _postr=0 ;; esac
+            [ -n "$PSIG" ] && [ "$PSIG" = "$_posig" ] && PSTREAK=$((10#$_postr + 1))
+            if [ "$PSTREAK" -ge "$((10#$NP_N))" ]; then
+              rm -f "$PHASE_FILE" 2>/dev/null || true
+              jq -n --arg n "$NP_N" \
+                '{systemMessage: ("tale-mode phase loop: NO PROGRESS — " + $n + " consecutive rounds failed the same committed gate with an IDENTICAL signature. Stopped enforcing — the anchor needs breaking, not more rounds; fix and re-run /tale-mode:kickoff-phase.")}'
+              exit 0
+            fi
+          fi
           # Advance the phase round counter (fail-open: if we cannot PERSIST it, allow the stop — a
           # frozen counter would never reach max_rounds and would trap the session forever).
           PNEXT=$((PR + 1))
           PTMP=$(mktemp 2>/dev/null || echo "$PHASE_FILE.tmp")
-          if jq --argjson r "$PNEXT" '.rounds=$r' "$PHASE_FILE" > "$PTMP" 2>/dev/null && mv "$PTMP" "$PHASE_FILE" 2>/dev/null; then :; else
+          if [ -n "$NP_N" ]; then
+            jq --argjson r "$PNEXT" --arg s "$PSIG" --argjson k "$PSTREAK" \
+               '.rounds=$r | .np_sig=$s | .np_streak=$k' "$PHASE_FILE" > "$PTMP" 2>/dev/null; _pjrc=$?
+          else
+            jq --argjson r "$PNEXT" '.rounds=$r' "$PHASE_FILE" > "$PTMP" 2>/dev/null; _pjrc=$?
+          fi
+          if [ "$_pjrc" -eq 0 ] && mv "$PTMP" "$PHASE_FILE" 2>/dev/null; then :; else
             rm -f "$PTMP" 2>/dev/null
             jq -n '{systemMessage:"tale-mode: cannot persist phase rounds (read-only/locked dir) — stopping to avoid an unbounded loop."}'
             exit 0
@@ -331,12 +374,37 @@ if [ "$RC" -eq 0 ]; then
   exit 0
 fi
 
+# No-progress stop (only when TALE_NO_PROGRESS_N is set — see the header block): compare this
+# failure's signature to the previous round's. N identical in a row -> disarm cleanly and tell
+# the user (an unchanged failure means the loop is anchored, and more rounds of the same are
+# waste). A CHANGED signature resets the streak — output that varies is a loop doing work.
+NP_SIG=""; NP_STREAK=1
+if [ -n "$NP_N" ]; then
+  NP_SIG=$(_np_sig "$CHECK|$RC|$TAIL")
+  _osig=$(jq -r '.np_sig // ""' "$GOAL_FILE" 2>/dev/null || true)
+  _ostr=$(jq -r '.np_streak // 0' "$GOAL_FILE" 2>/dev/null || echo 0)
+  case "$_ostr" in (*[!0-9]*|'') _ostr=0 ;; esac
+  [ -n "$NP_SIG" ] && [ "$NP_SIG" = "$_osig" ] && NP_STREAK=$((10#$_ostr + 1))
+  if [ "$NP_STREAK" -ge "$((10#$NP_N))" ]; then
+    rm -f "$GOAL_FILE"
+    jq -n --arg g "$GOAL" --arg n "$NP_N" \
+      '{systemMessage: ("tale-mode goal loop: NO PROGRESS — " + $n + " consecutive rounds failed with an IDENTICAL signature (" + $g + "). Disarmed; the anchor needs breaking, not more rounds — re-verify the foundational assumption (or re-arm deliberately).")}'
+    exit 0
+  fi
+fi
+
 # Not met -> advance the round counter. CRITICAL (fail-open): if we cannot PERSIST the
 # increment (read-only/locked .claude, full disk), ALLOW the stop instead of blocking — a
 # frozen counter would never reach max_rounds and would trap the session forever.
 NEXT=$((ROUNDS + 1))
 TMP=$(mktemp 2>/dev/null || echo "$GOAL_FILE.tmp")
-if jq --argjson r "$NEXT" '.rounds=$r' "$GOAL_FILE" > "$TMP" 2>/dev/null && mv "$TMP" "$GOAL_FILE" 2>/dev/null; then
+if [ -n "$NP_N" ]; then
+  jq --argjson r "$NEXT" --arg s "$NP_SIG" --argjson k "$NP_STREAK" \
+     '.rounds=$r | .np_sig=$s | .np_streak=$k' "$GOAL_FILE" > "$TMP" 2>/dev/null; _jrc=$?
+else
+  jq --argjson r "$NEXT" '.rounds=$r' "$GOAL_FILE" > "$TMP" 2>/dev/null; _jrc=$?
+fi
+if [ "$_jrc" -eq 0 ] && mv "$TMP" "$GOAL_FILE" 2>/dev/null; then
   :
 else
   rm -f "$TMP" 2>/dev/null
