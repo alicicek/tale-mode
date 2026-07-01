@@ -104,7 +104,7 @@ newwork; goal 5
 OUT=$(printf 'not json' | env -u CLAUDE_PROJECT_DIR PLUGIN_ROOT=/fake TALE_ALLOW_CWD_ROOT=1 STUB_LOG="$SLOG" PATH="$TPATH" bash "$HOOK" 2>&1); RC=$?
 ok "garbage stdin: exit 0 + silent"  '[ "$RC" -eq 0 ] && [ -z "$OUT" ]'
 newwork; goal 5
-NOCODEX=$(mktemp -d); for b in bash cat jq sed tr tail mktemp rm grep env; do p=$(command -v $b) && ln -s "$p" "$NOCODEX/$b"; done
+NOCODEX=$(mktemp -d); CLEANDIRS="$CLEANDIRS $NOCODEX"; for b in bash cat jq sed tr tail mktemp rm grep env; do p=$(command -v $b) && ln -s "$p" "$NOCODEX/$b"; done
 OUT=$(printf '{"session_id":"s1","cwd":"%s"}' "$WORK" | env -u CLAUDE_PROJECT_DIR PLUGIN_ROOT=/fake TALE_ALLOW_CWD_ROOT=1 PATH="$NOCODEX" bash "$HOOK" 2>&1); RC=$?
 ok "no codex on PATH: exit 0 + silent" '[ "$RC" -eq 0 ] && [ -z "$OUT" ]'
 rm -rf "$NOCODEX"

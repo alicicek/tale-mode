@@ -434,6 +434,19 @@ npcrun
 ok "phase round 2: NO PROGRESS disarm" 'printf "%s" "$OUT" | jq -r ".systemMessage" | grep -q "NO PROGRESS"'
 ok "marker deleted (phase disarmed)" '[ ! -f "$(pf)" ]'
 
+echo "53b) phase path + TALE_NO_PROGRESS_N=2: CHANGING gate output resets the streak -> keeps blocking past N (mirrors case 52 for the phase path)"
+cwork; cmark 0; ccfg "{\"gates\":[\"cat \$WORK_N/n.txt; false\"]}"; ctrust; cdirty
+# the gate's OUTPUT changes each round (different file contents) -> different signature -> streak never accrues.
+# WORK_N is exported into the hook env so the gate's `bash -c "cat $WORK_N/n.txt; false"` resolves the path.
+npcrun_n(){ OUT=$(printf '{"session_id":"%s","cwd":"%s","stop_hook_active":false,"hook_event_name":"Stop"}' "$CSID" "$WORK" \
+           | TALE_NO_PROGRESS_N=2 WORK_N="$WORK" CLAUDE_PROJECT_DIR="$WORK" TALE_TRUST_STORE="$CTRUST" bash "$HOOK" 2>"$CERR"); RC=$?; }
+echo one   > "$WORK/n.txt"; npcrun_n
+echo two   > "$WORK/n.txt"; npcrun_n
+echo three > "$WORK/n.txt"; npcrun_n
+ok "phase round 3 STILL blocks (signature changed each round)" 'printf "%s" "$OUT" | jq -e ".decision==\"block\"" >/dev/null'
+ok "phase streak stayed at 1 (never accrued to disarm)"        '[ "$(jq -r .np_streak "$(pf)")" = "1" ]'
+ok "marker still present (NOT disarmed)"                        '[ -f "$(pf)" ]'
+
 echo '54) knob hardening: TALE_NO_PROGRESS_N=0 / garbage -> feature OFF (normal block, no np fields)'
 newwork; arm '{"goal":"g","check":"false","rounds":0,"max_rounds":25}'
 OUT=$(printf '{"session_id":"%s","cwd":"%s","stop_hook_active":false,"hook_event_name":"Stop"}' "$SID" "$WORK" \

@@ -59,7 +59,7 @@ esac
 
 # 5. This session's goal-file (mirror the L1 scoping: scoped first, legacy fallback).
 SID=$(printf '%s' "$INPUT" | jq -r '.session_id // ""' 2>/dev/null || true)
-case "$SID" in (*[!a-zA-Z0-9_-]*) SID="" ;; esac
+case "$SID" in (*[!a-zA-Z0-9_-]*|'') SID="" ;; esac   # empty case explicit, to match L1 (stop-goal-loop.sh)
 GF=""
 [ -n "$SID" ] && [ -f "$ROOT/.claude/active-goal.$SID.json" ] && GF="$ROOT/.claude/active-goal.$SID.json"
 [ -z "$GF" ] && [ -f "$ROOT/.claude/active-goal.json" ] && GF="$ROOT/.claude/active-goal.json"
@@ -83,7 +83,9 @@ PROMPT="You are a FRESH-CONTEXT adversarial reviewer for a stuck autonomous goal
 TALE_GOVERNOR_ACTIVE=1 $TO codex exec --skip-git-repo-check --ephemeral -s read-only \
   -C "$ROOT" -o "$OUTF" "$PROMPT" >/dev/null 2>&1 || true
 
-FINDING=$(tr -d '\r' < "$OUTF" 2>/dev/null | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | tail -c 600)
+# head (not tail): the prompt asks for one sentence, but on a non-compliant "finding then
+# elaboration" reply, keeping the FIRST 600 bytes preserves the actual finding; tail would clip its start.
+FINDING=$(tr -d '\r' < "$OUTF" 2>/dev/null | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | head -c 600)
 rm -f "$OUTF" 2>/dev/null || true
 
 # 8. Advisory only. Empty / NOTHING / noise -> stay silent; a concrete finding -> systemMessage
