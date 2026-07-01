@@ -54,5 +54,32 @@ ok "output style: opens with ---"        '[ "$(head -n1 "$OS")" = "---" ]'
 ok "output style: has a name"            'grep -qE "^name:" "$OS"'
 ok "output style: has a description"     'grep -qE "^description:" "$OS"'
 
+echo "6) command<->skill twin drift-guard: load-bearing phrases exist in BOTH twins"
+# The commands (CC) and their skill twins (cross-platform) are edited by hand with a "keep in
+# sync" comment. Full prose equality would be brittle (they deliberately differ per host), so we
+# pin the LOAD-BEARING shared discipline phrases instead: if one twin drops or rewords one of
+# these, the pair has genuinely diverged and this fires. Case-insensitive to tolerate emphasis.
+_twin() { # $1 pair-name  $2 file-a  $3 file-b  $4 phrase   (globals: ok() evals in ITS scope,
+  TA="$2"; TB="$3"; TP="$4"                                 # so $2/$3/$4 would rebind — see #9's eval)
+  # Match against a whitespace-FLATTENED view of each file: prose reflows across lines (a phrase
+  # wrapped mid-way is not drift), so line-based grep would false-positive on wrap. -F = literal.
+  ok "$1: '$4' in both twins" \
+     '{ tr "\n" " " < "$TA" | tr -s " " | grep -qiF -- "$TP"; } && { tr "\n" " " < "$TB" | tr -s " " | grep -qiF -- "$TP"; }'
+}
+KC="$PLUG/commands/kickoff-phase.md"; KS="$PLUG/skills/kickoff-phase/SKILL.md"
+for p in "interview SHARP" "the code is ground truth; the plan is a snapshot" \
+         "DECIDE and proceed" "recommend changing the plan" "owner-triggered" "push-loop" \
+         "DONE/MISSING table" "re-review the post-fix delta" "named, owned deferral" \
+         "prove it by running it, not by reading the diff"; do
+  _twin "kickoff" "$KC" "$KS" "$p"
+done
+PC="$PLUG/commands/plan-phase.md"; PS="$PLUG/skills/plan-phase/SKILL.md"
+for p in "Decisions with receipts" "my judgment — rationale" \
+         "Never inscribe a constraint nobody gave you" "recommend changing the plan" \
+         "Adversarial review — fresh eyes, looped" "independently-shippable phases" \
+         "Engineering alternative" "Rollback + out-of-scope + known-untestable"; do
+  _twin "plan" "$PC" "$PS" "$p"
+done
+
 printf '\nPASS=%s FAIL=%s\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

@@ -30,7 +30,9 @@ Restart Claude Code (so it loads), then just ask:
 That's it. It picks how much process the task deserves, plans, verifies against the real
 code, and tells you what it couldn't check. For bigger work, reach for the
 [`/tale-mode:plan-phase` → `/tale-mode:kickoff-phase` pipeline](#use-it). Requires
-Claude Code **≥ v2.1.154**.
+Claude Code **≥ v2.1.154** (the deterministic kickoff auto-arm needs **≥ v2.1.195**,
+where it was verified; on older builds the marker simply never fires and the loop
+degrades gracefully to agent-armed goals).
 
 ## The problem it targets
 
@@ -181,12 +183,17 @@ plugin; there's nothing to wire up.
   a deploy, a go/no-go — instead of grinding the impossible. **Silent on any normal
   (non-phase, clean) turn.** When armed, it appends one JSONL verdict line per round to a local
   `.claude/tale-mode.log` audit trail (disable with `TALE_VERDICT_LOG=/dev/null`).
-  137 tests cover the fail/pass/pause/edge/log paths (incl. the committed-config trust/dirty/precedence, cross-platform cwd-root, and pending-marker adoption cases).
-- **Layer 2 — the governor** (optional, *separate* plugin): a **read-only** `type:"agent"` Stop hook
-  pinned to **Sonnet** that, once the agent is *stuck* (≥ 2 rounds), reads the plan/code with a fresh
-  adversarial frame and names the unverified foundation, a violated documented constraint, or a
-  band-aid — the failures the deterministic gate can't see. It ships as a **companion plugin** you add
-  only if you want it: `/plugin install tale-mode-governor@tale-mode`.
+  161 tests cover the fail/pass/pause/edge/log paths (incl. the committed-config trust/dirty/precedence, cross-platform cwd-root, pending-marker adoption, no-progress, and multi-line-gate cases).
+- **Layer 2 — the governor** (optional, *separate* plugin): once the agent is *stuck* (≥ 2 rounds),
+  a **read-only** fresh-context reviewer reads the plan/code with an adversarial frame and names the
+  unverified foundation, a violated documented constraint, or a band-aid — the failures the
+  deterministic gate can't see. On **Claude Code** it's a `type:"agent"` Stop hook pinned to
+  **Sonnet** (a model call at every turn-end while installed); on **Codex** (v1.2.0) it spawns
+  **one** OS-sandboxed **`codex exec --sandbox read-only --ephemeral`** reviewer per stuck goal —
+  exactly when a goal first hits round 2, not on every round — sentinel-guarded against recursion
+  (probe-proven; see [`docs/codex-governor-spike.md`](docs/codex-governor-spike.md)) — and
+  surfaces the finding as an *advisory* message, never a block. It ships as a **companion plugin** you add only if you want
+  it: `/plugin install tale-mode-governor@tale-mode`. Kill switch on Codex: `TALE_CODEX_GOVERNOR=0`.
 
   > **Why it's separate (honest):** an agent `Stop` hook makes a small **Sonnet call on every
   > turn-end** — even with no goal armed it spawns, finds no goal-file, and exits — so while it's
@@ -215,6 +222,11 @@ that env var. For loops that legitimately need more, raise it once in `~/.claude
 
 The loop is safe without this — `max_rounds` + the fail-open are self-contained; the cap is
 just a belt.
+
+**Optional no-progress stop.** Off by default. Set `TALE_NO_PROGRESS_N=3` (any positive N) and
+the loop disarms cleanly after N *consecutive* rounds that fail with a byte-identical signature
+(same command, exit code, and output tail) — an unchanged failure means the loop is anchored, and
+more rounds of the same are waste. A changing failure resets the streak (that's a loop doing work).
 
 **Cross-platform (Claude Code + Codex).** The skill and the autonomous loop run on both Claude
 Code and OpenAI Codex (which loads Claude-format plugins). On Codex the committed-config auto-arm
@@ -272,7 +284,8 @@ Then **restart Claude Code** (or run `/reload-plugins`). The **core** plugin is 
 (`defaultEnabled`), so the skill, the `/tale-mode:plan-phase` + `/tale-mode:kickoff-phase` commands,
 the `plan-reviewer` agent, and the free Layer-1 loop are live immediately. The **governor** is a
 *separate, optional* install — it adds a per-turn model call (see [Autonomous loop](#autonomous-loop)).
-Requires **Claude Code ≥ v2.1.154**.
+Requires **Claude Code ≥ v2.1.154** (kickoff auto-arm verified on ≥ v2.1.195; older builds degrade
+gracefully to agent-armed goals).
 
 **Verify it loaded:** `/skills` lists `tale-mode` · `/tale-mode:plan-phase` appears in the
 `/` menu · `/agents` lists `tale-mode:plan-reviewer`.
@@ -316,12 +329,18 @@ a handful of files you can skim in a few minutes.
      `~/.claude/tale-mode-trust`** — a manual, user-only step; the hook never self-trusts (the
      bundled `trust` skill documents the exact commands). Read
      [`plugins/tale-mode/hooks/stop-goal-loop.sh`](plugins/tale-mode/hooks/stop-goal-loop.sh)
-     (~350 lines) so you know exactly what runs and when.
+     (~420 lines) so you know exactly what runs and when.
   4. the **phase-marker hook** (`mark-phase.sh`, a UserPromptSubmit hook) writes a session-scoped
      `.claude/tale-mode.phase.<id>.json` when you run `/tale-mode:kickoff-phase`, so the Stop hook
      knows a build phase is active. It only writes that marker and always exits 0 with no output.
-  5. the **Layer-2 governor** is a **read-only** (`Read`/`Grep`/`Glob`) Sonnet hook — it can
-     read your code to spot an anchor, but cannot run shell or write files.
+  5. the **Layer-2 governor** (separate, optional plugin) is read-only on both hosts, by different
+     mechanisms: on Claude Code a (`Read`/`Grep`/`Glob`) Sonnet agent hook that cannot run shell;
+     on Codex a `type:"command"` hook (`codex-governor.sh`) that — only when a goal loop is stuck
+     AND you've granted the same cwd-root opt-in the loop uses — spawns **one** `codex exec`
+     reviewer locked to `--sandbox read-only` (OS-enforced; probe-proven unable to write even
+     /tmp) with a recursion sentinel, and posts its finding as an advisory message, never a
+     decision. Read [`plugins/tale-mode-governor/hooks/codex-governor.sh`](plugins/tale-mode-governor/hooks/codex-governor.sh)
+     (~100 lines) before installing.
 - It never asks Claude to read secrets, weaken security, or run destructive commands. The
   whole point is to make Claude *more* careful.
 
@@ -383,7 +402,7 @@ tale-mode/                                 (repo — also the plugin marketplace
 │   ├── codex-governor-spike.md            #   Codex governor go/no-go research note
 │   └── HOOKS.md                           #   optional deterministic typecheck/lint gates
 ├── tests/
-│   ├── test-stop-goal-loop.sh             # tests for the Stop loop hook (137 checks / 49 cases)
+│   ├── test-stop-goal-loop.sh             # tests for the Stop loop hook (161 checks / 56 cases)
 │   ├── test-session-start.sh              # tests for the SessionStart hook
 │   ├── test-mark-phase.sh                 # tests for the phase-marker hook
 │   ├── test-skills.sh                     # structural lint for the skills + output style
@@ -403,9 +422,11 @@ tale-mode/                                 (repo — also the plugin marketplace
     │   │   ├── session-start.sh           # always-on discipline injection (SessionStart)
     │   │   └── mark-phase.sh              # writes the phase marker on /tale-mode:kickoff-phase
     │   └── output-styles/tale-mode.md     # opt-in output style (selectable via /config)
-    └── tale-mode-governor/                # OPTIONAL companion (per-turn Sonnet cost)
+    └── tale-mode-governor/                # OPTIONAL companion (model call when stuck)
         ├── .claude-plugin/plugin.json     # metadata (depends on tale-mode)
-        └── hooks/hooks.json               # Layer 2: the read-only Sonnet governor
+        └── hooks/
+            ├── hooks.json                 # Layer 2: CC Sonnet agent hook + Codex command hook
+            └── codex-governor.sh          # the Codex read-only codex-exec governor
 ```
 
 `SKILL.md` is the whole methodology and is the only file the claude.ai app needs.

@@ -1,10 +1,18 @@
-# Codex governor spike — go/no-go (research only, nothing shipped)
+# Codex governor spike — go/no-go → GO (probes passed live; governor built)
 
-**Date:** 2026-07-01 · **Verdict: CONDITIONAL GO** — a `codex exec`-based L2 governor is
-*buildable safely*, but only behind three deterministic guards proven below, and it must not ship
-until three **owner-run live-Codex smokes** and a `/security-review` pass. This note is the
-deliverable of the Phase F spike (`docs/cross-platform-plan.md` Phase F; `docs/remaining-work.md`
-Lane 4). No governor code ships with it.
+**Date:** 2026-07-01 · **Verdict: CONDITIONAL GO — upgraded to GO the same day.** All three
+gating probes ran against the LIVE local Codex (0.142.4) via `codex exec` and passed; the
+governor shipped as `plugins/tale-mode-governor/hooks/codex-governor.sh` (v1.2.0), stub-tested in
+`tests/test-codex-governor.sh` and security-reviewed. **Probe results (observed, not inferred):**
+(1) *Hooks fire under `codex exec`* — the plugin SessionStart hook executed inside an exec run
+(env dump captured), and the L1 Stop hook blocked an exec turn, iterated it, and disarmed at
+`max_rounds` (verdict-log line recorded) → the recursion hazard is real; the sentinel guard chain
+was also proven live: an env var exported to `codex exec` appeared in that child session's hook
+subprocess env. (2) *Sandbox holds* — under `-s read-only` (against this machine's
+`sandbox_mode="workspace-write"` + `approval_policy="never"`), the child's `touch /tmp/...`
+failed "Operation not permitted" and it could not delete the goal-file. (3) *Detection works* —
+the plugin-hook env contained un-prefixed `PLUGIN_ROOT` and zero `CLAUDE_PROJECT_DIR`. This note
+was the deliverable of the "Phase F" research spike; the original research follows.
 
 **Sources.** OpenAI Codex source `openai/codex` @ `d059658` (2026-07-01, release rust-v0.142.5),
 the official hooks/sandboxing/config docs (developers.openai.com/codex), the local
@@ -63,7 +71,9 @@ are `codex-rs/…` in that repo.
   the `CLAUDE_*` forms. Detector: **`[ -n "$PLUGIN_ROOT" ] && [ -z "$CLAUDE_PROJECT_DIR" ]`**
   (belt-and-braces: CC always sets `CLAUDE_PROJECT_DIR` for hooks; Codex never does). Never use
   `CODEX_HOME` or bare `CLAUDE_*` — both proven poisoned on this machine
-  (`docs/cross-platform-plan.md` C4c). Residual: Claude Code is closed-source, so "CC never sets
+  (finding C4c of the retired cross-platform plan: this machine's Codex injects `CLAUDE_CODE_*`
+  into its processes via config, and `CODEX_HOME` is absent from hook env — both false-signal).
+  Residual: Claude Code is closed-source, so "CC never sets
   `PLUGIN_ROOT`" is docs-based, not source-proven — the belt covers that.
 
 ## Also settled by this spike
