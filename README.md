@@ -222,8 +222,8 @@ works via a **pending marker**: the `kickoff-phase` skill writes
 `.claude/tale-mode.phase.pending.json` (a prose-invoked skill may not carry the trigger text the
 marker hook matches), and the Stop hook claims it for the session at the first turn-end — the
 usual trust + dirty gates still apply. Adoption is session-scoped, so it needs the host's Stop
-payload to carry a `session_id` (always true on Claude Code; expected on Codex but pending a live
-confirmation — without one the pending file simply sits inert, fail-safe). The agent-written
+payload to carry a `session_id` (true on both hosts — confirmed live on Codex: the pending marker
+was adopted into a UUID-scoped name; on a host without one it simply sits inert, fail-safe). The agent-written
 `.claude/active-goal.json` remains the reliable ad-hoc path for goals the committed gates don't
 cover. And because Codex does not export
 `CLAUDE_PROJECT_DIR` — and its hook subprocesses don't inherit the host env config — you opt the
@@ -326,7 +326,9 @@ a handful of files you can skim in a few minutes.
   whole point is to make Claude *more* careful.
 
 **Read these before you trust it** (all under `plugins/tale-mode/`):
-`skills/tale-mode/SKILL.md` · `commands/plan-phase.md` · `commands/kickoff-phase.md` ·
+`skills/tale-mode/SKILL.md` · `skills/plan-phase/SKILL.md` · `skills/kickoff-phase/SKILL.md` ·
+`skills/trust/SKILL.md` · `skills/seed-gates/SKILL.md` · `skills/end-phase/SKILL.md` ·
+`commands/plan-phase.md` · `commands/kickoff-phase.md` ·
 `agents/plan-reviewer.md` · `hooks/stop-goal-loop.sh` · `hooks/session-start.sh` ·
 `hooks/mark-phase.sh` · `hooks/hooks.json` · `output-styles/tale-mode.md`.
 
@@ -377,6 +379,8 @@ tale-mode/                                 (repo — also the plugin marketplace
 ├── README.md · LICENSE · SECURITY.md
 ├── docs/                                  # rationale + notes (not shipped in the plugin)
 │   ├── autonomous-loop-design.md          #   design rationale + honest build log
+│   ├── autonomous-loop-v2-design.md       #   v2 (committed-config auto-arm) design
+│   ├── codex-governor-spike.md            #   Codex governor go/no-go research note
 │   └── HOOKS.md                           #   optional deterministic typecheck/lint gates
 ├── tests/
 │   ├── test-stop-goal-loop.sh             # tests for the Stop loop hook (137 checks / 49 cases)

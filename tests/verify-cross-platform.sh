@@ -26,18 +26,20 @@ if command -v claude >/dev/null 2>&1; then
   if claude plugin validate . >/dev/null 2>&1; then say OK "claude plugin validate"; else say FAIL "claude plugin validate"; fail=1; fi
 else say SKIP "claude CLI not on PATH"; fi
 
-echo "[3] Codex parse-compatibility (hooks.json)"
+echo "[3] Codex parse-compatibility (every plugin's hooks.json)"
 # Events Codex's hook parser accepts (strict serde enum — an unknown event fails the WHOLE file).
+# Checked for BOTH plugins: a bad governor hooks.json would spam a parse warning on every Codex
+# start even though its type:agent hook is skipped there anyway.
 KNOWN='SessionStart|SessionEnd|Stop|UserPromptSubmit|PreToolUse|PostToolUse|PermissionRequest|SubagentStart|SubagentStop|PreCompact|PostCompact|Notification'
-hj=plugins/tale-mode/hooks/hooks.json
-if ! jq -e . "$hj" >/dev/null 2>&1; then say FAIL "$hj is not valid JSON"; fail=1
-else
-  jq -e 'has("description")' "$hj" >/dev/null 2>&1 && { say FAIL "$hj has a top-level \"description\" (Codex rejects it)"; fail=1; }
+for hj in plugins/*/hooks/hooks.json; do
+  if ! jq -e . "$hj" >/dev/null 2>&1; then say FAIL "$hj is not valid JSON"; fail=1; continue; fi
+  ok3=1
+  jq -e 'has("description")' "$hj" >/dev/null 2>&1 && { say FAIL "$hj has a top-level \"description\" (Codex rejects it)"; fail=1; ok3=0; }
   for e in $(jq -r '.hooks|keys[]' "$hj"); do
-    printf '%s\n' "$e" | grep -qE "^($KNOWN)$" || { say FAIL "$hj event '$e' is unknown to Codex"; fail=1; }
+    printf '%s\n' "$e" | grep -qE "^($KNOWN)$" || { say FAIL "$hj event '$e' is unknown to Codex"; fail=1; ok3=0; }
   done
-  [ "$fail" = 0 ] && say OK "no description + all events Codex-known"
-fi
+  [ "$ok3" = 1 ] && say OK "$hj: no description + all events Codex-known"
+done
 
 echo "[4] Codex hook engagement (cwd-root Stop payload -> block)"
 TMP=$(mktemp -d); mkdir -p "$TMP/.claude"
