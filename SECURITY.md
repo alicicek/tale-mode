@@ -23,7 +23,17 @@ The complete, reviewable surface (all under `plugins/tale-mode/`):
      until you trust their exact content-hash**, by adding it to `~/.claude/tale-mode-trust` — a
      manual, user-only action. The hook and the agent only ever *read* that store, never write it,
      so a malicious repo cannot self-trust. The committed gates are AND-combined with any goal-file:
-     the agent's file may *add* a gate but can never *suppress* a committed one.
+     the agent's file may *add* a gate but can never *suppress* a committed one. The phase marker
+     itself can also arrive as an agent-written `.claude/tale-mode.phase.pending.json` (written by
+     the `kickoff-phase` *skill* on hosts without command expansion, e.g. Codex), which the Stop
+     hook claims into the session-scoped name at the first turn-end. That adoption grants nothing
+     an agent doesn't already have — a marker only *enables* the trust-gated, dirty-gated committed
+     gates above, strictly less than the arbitrary-shell goal-file in source 1. Two honest limits
+     of the shared pending name: adoption needs the host's Stop payload to carry a `session_id`
+     (without one the file sits inert, fail-safe), and with several concurrent sessions in one
+     repo, whichever session's turn ends first claims an unclaimed pending marker (or drops it, if
+     that session is already mid-phase) — bounded by the same trust + dirty + `max_rounds` gates,
+     and clearable any time with the `end-phase` skill.
   Either way, `check`/`gates` are arbitrary shell run with your privileges to decide whether to keep
   the turn going; the hook appends a JSONL verdict line to a local `.claude/tale-mode.log` audit file
   for each goal-file `check` round and each committed-gate **block** (the command + its last-1200-byte
@@ -49,8 +59,9 @@ The complete, reviewable surface (all under `plugins/tale-mode/`):
   so the Stop hook knows a deliberate build phase is active (this is what gates the committed-config
   auto-arm above). It reads only the hook payload, writes only that marker, makes no network calls,
   and **always exits 0 with no output** — it can never block or alter your prompt. (On Codex the
-  kickoff is invoked as a skill whose prompt may not carry the trigger text, so there the loop's
-  reliable arming path is the agent-written `.claude/active-goal.json`.)
+  kickoff is invoked as a skill whose prompt may not carry the trigger text, so there the
+  `kickoff-phase` skill writes the pending marker the Stop hook adopts — see above — and the
+  agent-written `.claude/active-goal.json` stays the ad-hoc path.)
 - `output-styles/tale-mode.md` — an **opt-in** output style (you select it via `/config`): plain
   Markdown instructions that shape how Claude works, inert until you choose it.
 - `agents/plan-reviewer.md` — a subagent granted `Bash` + `WebFetch`. These run only when you
@@ -60,6 +71,11 @@ The complete, reviewable surface (all under `plugins/tale-mode/`):
 - `skills/plan-phase/SKILL.md`, `skills/kickoff-phase/SKILL.md` — the same phase workflows as
   skills (the cross-platform trigger, since Codex has no user slash commands); instructions only,
   no code execution.
+- `skills/trust/SKILL.md`, `skills/seed-gates/SKILL.md`, `skills/end-phase/SKILL.md` — helper
+  skills, tuned to load only on an explicit ask; instructions only, no code execution. `trust`
+  documents the two user-only grant files and forbids the agent writing them; `seed-gates`
+  suggests gates and never writes the config unasked (and never the trust store); `end-phase`
+  clears the phase marker(s) — the explicit off-switch for committed-gate enforcement.
 
 A repo's committed gate config (`.claude/tale-mode.json`) and the trust store (`~/.claude/tale-mode-trust`)
 are **not** part of the plugin — the config lives in each consumer repo, and you review it at the moment

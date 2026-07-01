@@ -25,6 +25,8 @@ _h256()   { if   command -v sha256sum >/dev/null 2>&1; then sha256sum    < "$1" 
             else                                              openssl dgst -sha256 < "$1" | awk '{print $NF}'; fi; }
 cwork()   { WORK=$(mktemp -d); git -C "$WORK" init -q; git -C "$WORK" config user.email t@t; git -C "$WORK" config user.name t; mkdir -p "$WORK/.claude"; CTRUST=$(mktemp); CERR=$(mktemp); }
 pf()      { echo "$WORK/.claude/tale-mode.phase.$CSID.json"; }   # the phase marker / committed-loop state file
+pend()    { echo "$WORK/.claude/tale-mode.phase.pending.json"; } # the skill-written PENDING marker the hook adopts
+cpend()   { printf '{"session":"pending","rounds":0,"max_rounds":50,"needs_user":null}\n' > "$(pend)"; }
 cmark()   { printf '{"session":"%s","rounds":%s,"max_rounds":%s,"needs_user":%s}\n' "$CSID" "${1:-0}" "${2:-50}" "${3:-null}" > "$(pf)"; }
 ccfg()    { printf '%s' "$1" > "$WORK/.claude/tale-mode.json"; }
 ctrust()  { printf '%s  # test gates\n' "$(_h256 "$WORK/.claude/tale-mode.json")" > "$CTRUST"; }   # trust THIS config's hash
@@ -355,6 +357,44 @@ ok "exit 0"                       '[ "$RC" -eq 0 ]'
 ok "decision=block (file opt-in)" 'printf "%s" "$OUT" | jq -e ".decision==\"block\"" >/dev/null'
 ok "rounds incremented to 1"      '[ "$(jq -r .rounds "$(gf)")" = "1" ]'
 rm -rf "$HM44"
+
+echo "45) pending-marker adoption: a skill-written pending marker is claimed for THIS session and arms the committed gates"
+cwork; cpend; ccfg '{"gates":["false"]}'; ctrust; cdirty; crun
+ok "exit 0"                          '[ "$RC" -eq 0 ]'
+ok "decision=block (adopted marker armed the gates)" 'printf "%s" "$OUT" | jq -e ".decision==\"block\"" >/dev/null'
+ok "pending file claimed (gone)"     '[ ! -f "$(pend)" ]'
+ok "scoped marker exists, rounds=1"  '[ "$(cpr)" = "1" ]'
+
+echo "46) adoption idempotence: an EXISTING scoped marker wins; the pending file is dropped, rounds NOT reset"
+cwork; cmark 7; cpend; ccfg '{"gates":["false"]}'; ctrust; cdirty; crun
+ok "rounds advanced from the SCOPED marker (7 -> 8)" '[ "$(cpr)" = "8" ]'
+ok "pending file dropped (no lingering arm)"         '[ ! -f "$(pend)" ]'
+
+echo '47) session_id literally "pending": the file IS that session'"'"'s marker -> used in place, never deleted'
+# This injects the exact failure the [ "$SID" != "pending" ] guard prevents: without it, the
+# adoption's rm -f would delete the LIVE marker (PHASE_FILE == PENDING) and enforcement would
+# silently vanish. With it, the session uses the file as its own marker and the gate blocks.
+cwork; cpend; ccfg '{"gates":["false"]}'; ctrust; cdirty
+OUT=$(printf '{"session_id":"pending","cwd":"%s","stop_hook_active":false,"hook_event_name":"Stop"}' "$WORK" \
+      | CLAUDE_PROJECT_DIR="$WORK" TALE_TRUST_STORE="$CTRUST" bash "$HOOK" 2>"$CERR"); RC=$?
+ok "decision=block (marker survived, gates ran)" 'printf "%s" "$OUT" | jq -e ".decision==\"block\"" >/dev/null'
+ok "marker kept + rounds=1 (not deleted by adoption)" '[ "$(jq -r .rounds "$(pend)" 2>/dev/null)" = "1" ]'
+
+echo "48) Codex-shaped end-to-end: no CLAUDE_PROJECT_DIR + cwd-root opt-in + pending marker -> committed gates ENGAGE"
+cwork; cpend; ccfg '{"gates":["false"]}'; ctrust; cdirty
+OUT=$(printf '{"session_id":"%s","cwd":"%s","stop_hook_active":false,"hook_event_name":"Stop"}' "$CSID" "$WORK" \
+      | env -u CLAUDE_PROJECT_DIR TALE_ALLOW_CWD_ROOT=1 TALE_TRUST_STORE="$CTRUST" bash "$HOOK" 2>"$CERR"); RC=$?
+ok "exit 0"                          '[ "$RC" -eq 0 ]'
+ok "decision=block (Codex-shape auto-arm)" 'printf "%s" "$OUT" | jq -e ".decision==\"block\"" >/dev/null'
+ok "pending claimed to the scoped marker"  '[ ! -f "$(pend)" ] && [ "$(cpr)" = "1" ]'
+
+echo "49) pending marker + NO session_id in the payload -> adoption skipped, pending left intact, no block"
+cwork; cpend; ccfg '{"gates":["false"]}'; ctrust; cdirty
+OUT=$(printf '{"cwd":"%s","stop_hook_active":false,"hook_event_name":"Stop"}' "$WORK" \
+      | CLAUDE_PROJECT_DIR="$WORK" TALE_TRUST_STORE="$CTRUST" bash "$HOOK" 2>"$CERR"); RC=$?
+ok "exit 0"                          '[ "$RC" -eq 0 ]'
+ok "no block (a phase is always session-scoped)" '! printf "%s" "$OUT" | jq -e ".decision==\"block\"" >/dev/null 2>&1'
+ok "pending file left for a session that CAN claim it" '[ -f "$(pend)" ]'
 
 echo
 echo "RESULT: $PASS passed, $FAIL failed"
