@@ -1,16 +1,19 @@
 # Tale Mode
 
+[![Latest release](https://img.shields.io/github/v/release/alicicek/tale-mode?color=d97757&label=release)](https://github.com/alicicek/tale-mode/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Claude Code plugin](https://img.shields.io/badge/Claude%20Code-plugin-d97757.svg)](https://docs.claude.com/en/docs/claude-code/plugins)
+[![Claude Code + Codex](https://img.shields.io/badge/Claude%20Code%20%2B%20Codex-plugin-d97757.svg)](https://docs.claude.com/en/docs/claude-code/plugins)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#contributing)
 
-**Anthropic pulled the plug on Fable. Tale Mode was made by Fable to get Opus to act like Fable.**
+> **Anthropic pulled the plug on Fable. Tale Mode was made by Fable to get Opus to act like Fable.**
 
-Not smarter — *more disciplined.* A drop-in Claude Code **plugin** that makes any Claude
-work like a careful senior engineer: verify the real code (never memory), receipts on
-every decision, an *independent* adversarial review before it says "done," durable notes —
-and a **self-armed autonomous loop** that keeps going until a real check passes. Right-sized,
-so a typo fix stays a typo fix. The model got pulled; the method didn't.
+Not smarter — *more disciplined.* A drop-in plugin for **Claude Code and OpenAI Codex** that makes
+any Claude work like a careful senior engineer: verify the real code instead of trusting memory,
+put a source on every decision, run an *independent* adversarial review before it says "done," and
+keep durable notes. It also ships a **self-armed autonomous loop** that keeps working until a real
+check passes. Everything is right-sized, so a typo fix stays a typo fix.
+
+The model got pulled; the method didn't.
 
 **Contents:** [Quick start](#quick-start) · [Problem](#the-problem-it-targets) · [How it works](#how-it-works) · [Examples](#examples) · [Use it](#use-it) · [Autonomous loop](#autonomous-loop) · [What's different](#what-makes-it-different) · [Install](#install) · [Security & trust](#security--trust) · [Tuning](#tuning--effort--orchestration) · [Does it work?](#does-it-actually-work) · [What's in the box](#whats-in-the-box) · [Managing / removing](#managing--removing) · [Contributing](#contributing)
 
@@ -184,23 +187,20 @@ plugin; there's nothing to wire up.
   (non-phase, clean) turn.** When armed, it appends one JSONL verdict line per round to a local
   `.claude/tale-mode.log` audit trail (disable with `TALE_VERDICT_LOG=/dev/null`).
   161 tests cover the fail/pass/pause/edge/log paths (incl. the committed-config trust/dirty/precedence, cross-platform cwd-root, pending-marker adoption, no-progress, and multi-line-gate cases).
-- **Layer 2 — the governor** (optional, *separate* plugin): once the agent is *stuck* (≥ 2 rounds),
-  a **read-only** fresh-context reviewer reads the plan/code with an adversarial frame and names the
-  unverified foundation, a violated documented constraint, or a band-aid — the failures the
-  deterministic gate can't see. On **Claude Code** it's a `type:"agent"` Stop hook pinned to
-  **Sonnet** (a model call at every turn-end while installed); on **Codex** (v1.2.0) it spawns
-  **one** OS-sandboxed **`codex exec --sandbox read-only --ephemeral`** reviewer per stuck goal —
-  exactly when a goal first hits round 2, not on every round — sentinel-guarded against recursion
-  (probe-proven; see [`docs/codex-governor-spike.md`](docs/codex-governor-spike.md)) — and
-  surfaces the finding as an *advisory* message, never a block. It ships as a **companion plugin** you add only if you want
-  it: `/plugin install tale-mode-governor@tale-mode`. Kill switch on Codex: `TALE_CODEX_GOVERNOR=0`.
+- **Layer 2 — the governor** (optional companion plugin): once the loop is *stuck* (≥ 2 rounds), a
+  read-only, fresh-context reviewer reads the plan and code with an adversarial frame and names the
+  thing Layer 1 can't see — an unverified foundation, a violated constraint from the plan, or a
+  band-aid. On Claude Code it runs as a `type:"agent"` Sonnet hook; on Codex it spawns one
+  OS-sandboxed `codex exec --sandbox read-only` reviewer per stuck goal, guarded against recursion
+  ([how it was verified](docs/codex-governor-spike.md)). Either way it only *advises* — it never
+  blocks. Install it if you want it: `/plugin install tale-mode-governor@tale-mode`.
 
-  > **Why it's separate (honest):** an agent `Stop` hook makes a small **Sonnet call on every
-  > turn-end** — even with no goal armed it spawns, finds no goal-file, and exits — so while it's
-  > enabled it adds a little per-turn latency + token cost to *all* usage. L1 (the core) is a free
-  > instant bash check, so the **default install stays free + snappy**; the governor is opt-in for
-  > those who want anchor-breaking on stuck loops. Remove it any time with
-  > `/plugin uninstall tale-mode-governor@tale-mode`.
+  > It's a separate plugin because it costs something. The governor makes a model call at every
+  > turn-end while installed (even with no goal armed, it spawns, finds nothing, and exits), so it
+  > adds a little latency and token cost to all usage. Layer 1 is a free instant bash check, so the
+  > default install stays free and fast; the governor is there for people who want anchor-breaking
+  > on stuck loops. On Codex, disable it any time with `TALE_CODEX_GOVERNOR=0`, or remove the
+  > plugin entirely with `/plugin uninstall tale-mode-governor@tale-mode`.
 
 **Can't-forget auto-arm (v2).** The goal-file works, but it relies on the agent *remembering* to
 write it. So the loop can also arm from a **committed `.claude/tale-mode.json`** — e.g.
@@ -228,31 +228,22 @@ the loop disarms cleanly after N *consecutive* rounds that fail with a byte-iden
 (same command, exit code, and output tail) — an unchanged failure means the loop is anchored, and
 more rounds of the same are waste. A changing failure resets the streak (that's a loop doing work).
 
-**Cross-platform (Claude Code + Codex).** The skill and the autonomous loop run on both Claude
-Code and OpenAI Codex (which loads Claude-format plugins). On Codex the committed-config auto-arm
-works via a **pending marker**: the `kickoff-phase` skill writes
-`.claude/tale-mode.phase.pending.json` (a prose-invoked skill may not carry the trigger text the
-marker hook matches), and the Stop hook claims it for the session at the first turn-end — the
-usual trust + dirty gates still apply. Adoption is session-scoped, so it needs the host's Stop
-payload to carry a `session_id` (true on both hosts — confirmed live on Codex: the pending marker
-was adopted into a UUID-scoped name; on a host without one it simply sits inert, fail-safe). The agent-written
-`.claude/active-goal.json` remains the reliable ad-hoc path for goals the committed gates don't
-cover. And because Codex does not export
-`CLAUDE_PROJECT_DIR` — and its hook subprocesses don't inherit the host env config — you opt the
-loop in there with a one-time marker file: **`touch ~/.tale-mode-allow-cwd-root`** (on Claude
-Code, `TALE_ALLOW_CWD_ROOT=1` also works). That lets the hook resolve the project root from the
-session `cwd` (validated absolute + existing); enable it once you've confirmed that `cwd` is your
-stable workspace root. The phase commands surface as the `plan-phase` / `kickoff-phase` **skills**
-on Codex (no user slash commands there), and the `trust` skill documents both opt-in files.
+**Cross-platform (Claude Code + Codex).** The skill and the autonomous loop both run on OpenAI
+Codex, which loads Claude-format plugins. Two things differ there. Codex has no user slash
+commands, so the phase workflows surface as the `plan-phase` and `kickoff-phase` *skills* instead.
+And because Codex doesn't hand its hooks a trusted project root, the loop stays inert until you opt
+in once with `touch ~/.tale-mode-allow-cwd-root` — after which it resolves the root from the
+session directory. The bundled `trust` skill walks through this and the committed-gate trust store;
+the mechanics were verified against a live Codex session, not just documented. Everything on Claude
+Code is unchanged.
 
-**Honest scope.** This buys *autonomy*, not IQ. Verified live (`claude -p`): the
-block→re-turn loop, multi-round iteration, `max_rounds` give-up, the agent self-arming a
-goal, and the `needs_user` pause all work. But capable models already self-regulate —
-they foundation-check and bail correctly — so the loop is mostly a **safety net** for the
-rare real stall, not a daily multiplier. It's a seatbelt: proven to function, worth
-wearing, most valuable on the bad day. Design rationale + the honest build log (including
-the bugs an adversarial pass caught in this very hook):
-[`docs/autonomous-loop-design.md`](docs/autonomous-loop-design.md).
+**What the loop actually buys.** Autonomy, not IQ. The block-and-retry loop, multi-round
+iteration, the `max_rounds` give-up, the agent self-arming a goal, and the `needs_user` pause are
+all verified live (`claude -p`). But capable models already self-regulate — they foundation-check
+and bail correctly on their own — so the loop is mostly a safety net for the rare genuine stall,
+not a daily multiplier. Think seatbelt: proven to work, worth wearing, most valuable on the bad
+day. The design rationale and build log — including the bugs an adversarial pass caught in this
+very hook — are in [`docs/autonomous-loop-design.md`](docs/autonomous-loop-design.md).
 
 ## What makes it different
 
@@ -372,12 +363,10 @@ Two independent dials, once it's running:
 
 ## Does it actually work?
 
-Honestly: a skill that asserts "the model now plans and self-critiques" will
-trivially pass an eval that *checks for planning and self-critique* — the
-un-skilled baseline "fails" assertions it was never asked to satisfy. A
-100%-vs-0% number like that is **circular**; treat it (and any you see quoted for
-tools like this) with skepticism. The real test is **output quality on hard
-tasks**.
+Be skeptical of eval numbers — including any you'd see quoted for a tool like this. A skill that
+asserts "the model now plans and self-critiques" will trivially pass an eval that *checks for*
+planning and self-critique, while the un-skilled baseline "fails" assertions it was never asked to
+satisfy. A 100%-vs-0% result like that is circular. The real test is output quality on hard tasks.
 
 To judge it yourself: run the same genuinely-hard task twice (with and without the
 mode), then have a *fresh* session adversarially review both outputs against the
@@ -397,7 +386,7 @@ tale-mode/                                 (repo — also the plugin marketplace
 │   └── marketplace.json                   # makes the repo installable via /plugin
 ├── README.md · LICENSE · SECURITY.md
 ├── docs/                                  # rationale + notes (not shipped in the plugin)
-│   ├── autonomous-loop-design.md          #   design rationale + honest build log
+│   ├── autonomous-loop-design.md          #   design rationale + build log
 │   ├── autonomous-loop-v2-design.md       #   v2 (committed-config auto-arm) design
 │   ├── codex-governor-spike.md            #   Codex governor go/no-go research note
 │   └── HOOKS.md                           #   optional deterministic typecheck/lint gates

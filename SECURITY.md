@@ -1,13 +1,18 @@
 # Security Policy
 
-Tale Mode is a Claude Code **plugin** — a set of Markdown instruction files, three small hook
-shell scripts (a Stop gate, a SessionStart discipline injector, and a phase marker), and JSON manifests. There's no server, no build step, and no runtime
-service. But a plugin is loaded into an AI agent's context and can shape what the agent does,
-so its contents matter. This policy explains the threat model and how to report a problem.
+Tale Mode is a plugin for Claude Code and OpenAI Codex — Markdown instruction files, a few small
+shell hooks, and JSON manifests. There's no server, no build step, and no runtime service. But a
+plugin loads into an AI agent's context and can shape what the agent does, so its contents matter.
+This policy explains the threat model and how to report a problem.
+
+The whole point of keeping it small is that you can read it. The sections below list every file
+that carries any capability, and what each one can and can't do.
 
 ## Threat model — what to look at
 
-The complete, reviewable surface (all under `plugins/tale-mode/`):
+The core plugin (`plugins/tale-mode/`) is the default install; the governor
+(`plugins/tale-mode-governor/`, covered at the end) is a separate opt-in. The complete reviewable
+surface:
 
 - `skills/tale-mode/SKILL.md` — the instructions loaded into the model. Read it for anything
   that would steer Claude toward reading secrets, exfiltrating data, weakening security, or
@@ -28,7 +33,7 @@ The complete, reviewable surface (all under `plugins/tale-mode/`):
      the `kickoff-phase` *skill* on hosts without command expansion, e.g. Codex), which the Stop
      hook claims into the session-scoped name at the first turn-end. That adoption grants nothing
      an agent doesn't already have — a marker only *enables* the trust-gated, dirty-gated committed
-     gates above, strictly less than the arbitrary-shell goal-file in source 1. Two honest limits
+     gates above, strictly less than the arbitrary-shell goal-file in source 1. Two limits
      of the shared pending name: adoption needs the host's Stop payload to carry a `session_id`
      (without one the file sits inert, fail-safe), and with several concurrent sessions in one
      repo, whichever session's turn ends first claims an unclaimed pending marker (or drops it, if
@@ -76,6 +81,26 @@ The complete, reviewable surface (all under `plugins/tale-mode/`):
   documents the two user-only grant files and forbids the agent writing them; `seed-gates`
   suggests gates and never writes the config unasked (and never the trust store); `end-phase`
   clears the phase marker(s) — the explicit off-switch for committed-gate enforcement.
+
+### The governor (optional companion — `plugins/tale-mode-governor/`)
+
+The governor is a **separate plugin you install only if you want it**. It adds one capability the
+core plugin doesn't have: when the autonomous loop is stuck, it runs a read-only reviewer to break
+the anchor. It is read-only on both hosts, by different mechanisms:
+
+- `hooks/hooks.json` + a `type:"agent"` entry — on Claude Code, a Sonnet reviewer restricted to
+  `Read`/`Grep`/`Glob`. It can read your code to spot the problem, but cannot run shell or write files.
+- `hooks/codex-governor.sh` — on Codex, a `type:"command"` hook. It does nothing until *all* of
+  these hold: the loop has failed a goal ≥ 2 times, you've granted the same `~/.tale-mode-allow-cwd-root`
+  opt-in the core loop uses, and it's actually running on Codex. Only then does it spawn **one**
+  `codex exec` reviewer locked to `--sandbox read-only` — OS-enforced (Seatbelt / seccomp), and
+  probe-verified unable to write even `/tmp`. A sentinel environment variable stops that child from
+  re-triggering the hook (no recursion), and the reviewer's finding is surfaced as an *advisory*
+  message — it can never block a turn or change the loop's decision. Disable it any time with
+  `TALE_CODEX_GOVERNOR=0`. The full design, and the live probes that justified building it, are in
+  [`docs/codex-governor-spike.md`](docs/codex-governor-spike.md).
+
+### Not part of the plugin
 
 A repo's committed gate config (`.claude/tale-mode.json`) and the trust store (`~/.claude/tale-mode-trust`)
 are **not** part of the plugin — the config lives in each consumer repo, and you review it at the moment
