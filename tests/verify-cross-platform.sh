@@ -5,7 +5,7 @@
 # (write {"check":"bash tests/verify-cross-platform.sh"} to .claude/active-goal.json).
 #
 # It covers everything verifiable WITHOUT a live Codex session:
-#   1. the hook logic, against BOTH runtimes' payload shapes (the 3 unit suites)
+#   1. the hook logic, against BOTH runtimes' payload shapes (the 3 hook suites) + the skills lint
 #   2. Claude Code plugin validity
 #   3. Codex parse-compatibility (no top-level `description`; only Codex-known hook events)
 #   4. Codex hook ENGAGEMENT — a Codex-shaped Stop payload (cwd-root, no CLAUDE_PROJECT_DIR) blocks
@@ -16,8 +16,8 @@ cd "$(dirname "$0")/.." || exit 1
 fail=0
 say(){ printf '  %-4s %s\n' "$1" "$2"; }
 
-echo "[1] unit suites (hook logic, both payload shapes)"
-for t in test-stop-goal-loop test-mark-phase test-session-start; do
+echo "[1] unit suites (hook logic, both payload shapes; + the skills structural lint)"
+for t in test-stop-goal-loop test-mark-phase test-session-start test-skills; do
   if bash "tests/$t.sh" >"/tmp/tm-$t.out" 2>&1; then say OK "$t"; else say FAIL "$t  (see /tmp/tm-$t.out)"; fail=1; fi
 done
 

@@ -8,9 +8,26 @@ description: Build ONE scoped phase of an existing multi-phase plan in a fresh s
 > **Cross-platform note.** This is the skill form of the `/tale-mode:kickoff-phase` Claude Code
 > command, for hosts where slash commands don't exist (e.g. Codex). The two are kept in sync — if
 > you edit one, mirror the other. On Codex there is no `$ARGUMENTS`: take **the plan-file path and
-> the phase/chunk id from the user's prompt**. (Note: Codex has no command-expansion event, so the
-> deterministic committed-config auto-arm is Claude-Code-only; on Codex, arm enforcement by writing
-> `.claude/active-goal.json` yourself if you want the loop to drive a gate to green.)
+> the phase/chunk id from the user's prompt**.
+>
+> **Arm the phase loop (skill-invoked hosts only).** When this runs as a *skill*, the phase-marker
+> hook may never see the kickoff (it matches the prompt text, which a prose invocation may not
+> carry), so write the pending marker yourself — your first action once you're allowed to write
+> (immediately, or right after plan approval if your host blocks writes in plan mode), **run from
+> the project root** (the Stop hook only looks for it there):
+>
+> ```bash
+> [ -f .claude/tale-mode.phase.pending.json ] || printf '%s\n' \
+>   '{"session":"pending","rounds":0,"max_rounds":50,"needs_user":null}' \
+>   > .claude/tale-mode.phase.pending.json
+> ```
+>
+> The Stop hook claims that file for your session at the first turn-end and then enforces the
+> committed `.claude/tale-mode.json` gates while the tree is dirty — IF the user has trusted that
+> config's content-hash (inert otherwise; the `trust` skill has the commands — surface them, never
+> run them). For a goal the committed gates don't cover, additionally write
+> `.claude/active-goal.json` (the ad-hoc loop). On Claude Code the `/tale-mode:kickoff-phase`
+> command arms this automatically — don't double-arm there.
 
 **If your host has a plan mode, enter it now** and stay in it through the investigate-and-confirm
 steps below — no edits until the user approves. Read the named plan file (and any roadmap/README it

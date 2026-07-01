@@ -98,6 +98,26 @@ fi
 # ============================================================================
 PHASE_FILE=""
 [ -n "$SID" ] && PHASE_FILE="$ROOT/.claude/tale-mode.phase.$SID.json"
+# Cross-platform kickoff adoption: on a host where the kickoff runs as a SKILL (no command
+# expansion the mark-phase hook can see — e.g. Codex invoked in prose), the agent can't know its
+# own session_id, so the kickoff-phase skill writes .claude/tale-mode.phase.pending.json and THIS
+# hook claims it for the current session — the same claim pattern as the legacy goal-file above.
+# Unlike the goal-file's mv -f, an EXISTING scoped marker wins (idempotence: a re-kickoff must
+# never reset the round counter — mark-phase.sh may already have written ours); the pending file
+# is dropped either way so it can't linger and arm a later, unrelated session. Known limit of a
+# session-id-less writer: with CONCURRENT sessions in one repo, whichever session's turn ends
+# first claims (or, if already mid-phase, drops) the pending file — same user/repo/trust, bounded
+# by max_rounds, and clearable via the end-phase skill; documented in SECURITY.md. A session_id
+# literally "pending" would make both paths the same file — skip adoption (never delete a live
+# marker; that session just uses the file as its own). SECURITY: this grants nothing an agent
+# doesn't already have — the marker only ENABLES the committed-gate block below, which still
+# requires a content-hash-TRUSTED .claude/tale-mode.json AND a dirty tree; the agent-written
+# goal-file (arbitrary shell, no trust gate) is strictly more.
+PENDING="$ROOT/.claude/tale-mode.phase.pending.json"
+if [ -n "$PHASE_FILE" ] && [ "$SID" != "pending" ] && [ -f "$PENDING" ]; then
+  if [ -f "$PHASE_FILE" ]; then rm -f "$PENDING" 2>/dev/null || true
+  else mv -f "$PENDING" "$PHASE_FILE" 2>/dev/null || true; fi
+fi
 if [ -n "$PHASE_FILE" ] && [ -f "$PHASE_FILE" ] && command -v jq >/dev/null 2>&1; then
   # sha256 of a file's content -> bare hex (empty if no hashing tool is available).
   _sha256() {
