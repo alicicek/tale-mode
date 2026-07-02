@@ -92,7 +92,11 @@ surface:
   is a whitelisted **read** of a file whose path isn't on the sensitive-term denylist (`.ssh`,
   `.pem`, `.env`, `credential`, `token`, …) running without its per-command dialog — a substring
   denylist can't be complete, so a prompt-injected agent could read a non-obvious file into
-  context. That is a strictly smaller surface than "writes are impossible" — which is **not** what
+  context. The denylist scans the command *text*, not its *output*, so the same class covers reads
+  whose output can carry a secret the command never named: `git config`'s dump forms
+  (`--list`/`--get-regexp`) are excluded from the whitelist for exactly this reason (only named-key
+  `--get`/`--get-all` reads pass, and the named key is denylist-scanned), but e.g. `git remote -v`
+  can still surface a token-embedded remote URL if one exists. That is a strictly smaller surface than "writes are impossible" — which is **not** what
   this provides. If you'd rather keep every plan-mode dialog, `TALE_PLAN_APPROVE=0` disables just
   this hook. The 100-plus-case `tests/test-approve-readonly.sh` is deliberately fail-case-heavy:
   every write/exec/smuggle/obfuscated-flag payload must fall through, because a guard that can't

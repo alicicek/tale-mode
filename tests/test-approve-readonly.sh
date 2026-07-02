@@ -45,6 +45,7 @@ allow 'git diff HEAD~1 --stat' "git diff"
 allow 'git branch -a' "git branch (list form)"
 allow 'git remote -v' "git remote -v"
 allow 'git stash list' "git stash list"
+allow 'git config --get user.name' "git config named-key read"
 allow 'find . -name "*.wav" -newer ref' "find without action flags"
 allow 'sed -n 5p file.sh' "sed pure-print, unquoted"
 allow "sed -n '188,195p' bin/converse.sh" "sed pure-print, quoted range"
@@ -79,6 +80,10 @@ prompt 'git push'
 prompt 'git commit -m x'
 prompt 'git branch newname' "git branch with a name arg creates"
 prompt 'git config user.name x' "git config write form"
+prompt 'git config --list' "git config dump can spill credential-bearing config"
+prompt 'git config -l' "git config -l (same dump)"
+prompt 'git config --get-regexp .' "git config --get-regexp dumps wholesale"
+prompt 'git config --get credential.helper' "named key on the sensitive-term denylist"
 prompt 'git log --output=/tmp/pwn' "git log --output writes"
 prompt 'git stash pop'
 prompt 'mv a b'; prompt 'cp a b'; prompt 'touch f'; prompt 'tee f'

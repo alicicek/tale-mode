@@ -438,7 +438,7 @@ tale-mode/                                 (repo — also the plugin marketplace
 │   ├── test-mark-phase.sh                 # tests for the phase-marker hook
 │   ├── test-skills.sh                     # structural lint for the skills + output style
 │   ├── test-governor.sh                   # tests for the governor hook (both hosts, stubbed)
-│   ├── test-approve-readonly.sh           # tests for the plan-mode auto-approve (80 checks, fail-case heavy)
+│   ├── test-approve-readonly.sh           # tests for the plan-mode auto-approve (118 checks, fail-case heavy)
 │   └── verify-cross-platform.sh           # the one-shot deterministic gate (suites + validate + Codex shape)
 └── plugins/
     ├── tale-mode/                         # CORE plugin (free)

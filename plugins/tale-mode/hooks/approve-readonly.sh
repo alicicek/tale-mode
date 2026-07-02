@@ -134,7 +134,7 @@ while IFS= read -r seg; do
     sed)      # only the pure-print form: sed -n '<addr>p' [file...]
               [ "${1:-}" = "-n" ] || exit 0; shift
               script="${1:-}"; shift || true
-              printf '%s' "$script" | grep -Eq '^[0-9]+(,([0-9]+|\$))?p$' || exit 0
+              printf '%s' "$script" | grep -Eq '^[0-9]+(,[0-9]+)?p$' || exit 0  # no $ addr: the global $ reject already ate it
               any_arg '-*' "$@" && exit 0 ;;  # no flags after the script (blocks a trailing -i)
     git)      sub="${1:-}"; shift || true
               any_arg '--output --output=* -o*' "$@" && exit 0   # log/diff/grep write-to-file
@@ -147,7 +147,7 @@ while IFS= read -r seg; do
                          esac; done ;;
                 remote)  case "$#" in (0) : ;; (1) [ "$1" = "-v" ] || exit 0 ;; (*) exit 0 ;; esac ;;
                 stash|worktree) [ "${1:-}" = "list" ] || exit 0 ;;
-                config)  case "${1:-}" in (--get|--get-all|--get-regexp|--list|-l) : ;; (*) exit 0 ;; esac ;;
+                config)  case "${1:-}" in (--get|--get-all) : ;; (*) exit 0 ;; esac ;;  # named-key reads only: dump forms (--list/-l/--get-regexp) can spill credential-bearing config (token URLs, http.extraheader) into output; a named key is scanned by the denylist above
                 *) exit 0 ;;  # unknown subcommand, or `-c`/`-C`/`--exec-path` as arg[0] (config/alias RCE)
               esac ;;
     *) exit 0 ;;  # unknown binary
