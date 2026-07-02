@@ -23,6 +23,12 @@ timeout. Corrections to stale prose elsewhere in this doc:
 - **Block cap:** `CLAUDE_CODE_STOP_HOOK_BLOCK_CAP` (default 8, raisable) IS documented — in the hooks
   *guide* (an earlier "not in the docs" was a guide-vs-reference page mismatch). We still do NOT rely
   on it; the self-contained safety is `max_rounds` + the fail-open. Belt, not the only belt.
+- **Layer 2 — SUPERSEDED in governor v2.0.0 (2026-07-02).** Everything below about a
+  `type:"agent"` Sonnet hook that *blocks* describes v1, kept as build-log history. The shipped
+  governor is now ONE `type:"command"` hook (`governor.sh`) on both hosts: a free bash gate that
+  spawns a single read-only reviewer (`claude -p` on Claude Code / sandboxed `codex exec` on
+  Codex) exactly when a goal first fails twice, and returns an ADVISORY message — it no longer
+  blocks; Layer 1 owns the decision.
 - **Layer 2 (the `type:"agent"` governor): VERIFIED it FIRES in headless `-p`.** An earlier "never
   fires" was a broken-INSTRUMENT error — agent hooks are **READ-ONLY** (Read/Grep/Glob; NO Bash/Write),
   so a write-based detector found nothing; a valid block-decision test showed it firing + re-turning to

@@ -202,20 +202,22 @@ plugin; there's nothing to wire up.
   (non-phase, clean) turn.** When armed, it appends one JSONL verdict line per round to a local
   `.claude/tale-mode.log` audit trail (disable with `TALE_VERDICT_LOG=/dev/null`).
   161 tests cover the fail/pass/pause/edge/log paths (incl. the committed-config trust/dirty/precedence, cross-platform cwd-root, pending-marker adoption, no-progress, and multi-line-gate cases).
-- **Layer 2 — the governor** (optional companion plugin): once the loop is *stuck* (≥ 2 rounds), a
-  read-only, fresh-context reviewer reads the plan and code with an adversarial frame and names the
-  thing Layer 1 can't see — an unverified foundation, a violated constraint from the plan, or a
-  band-aid. On Claude Code it runs as a `type:"agent"` Sonnet hook; on Codex it spawns one
-  OS-sandboxed `codex exec --sandbox read-only` reviewer per stuck goal, guarded against recursion
-  ([how it was verified](docs/codex-governor-spike.md)). Either way it only *advises* — it never
-  blocks. Install it if you want it: `/plugin install tale-mode-governor@tale-mode`.
+- **Layer 2 — the governor** (optional companion plugin, v2): a free bash gate watches every
+  turn-end, and exactly when a goal first fails twice — the two-strike moment — it spawns **one**
+  read-only, fresh-context reviewer that reads the plan and code with an adversarial frame and
+  names the thing Layer 1 can't see: an unverified foundation, a violated constraint from the
+  plan, or a band-aid. On Claude Code the reviewer is `claude -p` pinned to a small model and
+  restricted to read-only tools; on Codex it's an OS-sandboxed `codex exec --sandbox read-only`
+  ([how both were verified live](docs/codex-governor-spike.md)). It only *advises* — it never
+  blocks; Layer 1 owns the decision. Install it if you want it:
+  `/plugin install tale-mode-governor@tale-mode`.
 
-  > It's a separate plugin because it costs something. The governor makes a model call at every
-  > turn-end while installed (even with no goal armed, it spawns, finds nothing, and exits), so it
-  > adds a little latency and token cost to all usage. Layer 1 is a free instant bash check, so the
-  > default install stays free and fast; the governor is there for people who want anchor-breaking
-  > on stuck loops. On Codex, disable it any time with `TALE_CODEX_GOVERNOR=0`, or remove the
-  > plugin entirely with `/plugin uninstall tale-mode-governor@tale-mode`.
+  > **Idle cost: zero.** When nothing is stuck — which is almost always — the governor is a
+  > few milliseconds of bash and no tokens. It spends exactly one bounded model call per stuck
+  > goal, drawn from your own subscription for that host. It stays a separate plugin because
+  > spawning headless model calls on your behalf is a capability you should opt into, not a
+  > default. Kill switch on both hosts: `TALE_GOVERNOR=0`; remove entirely with
+  > `/plugin uninstall tale-mode-governor@tale-mode`.
 
 **Can't-forget auto-arm (v2).** The goal-file works, but it relies on the agent *remembering* to
 write it. So the loop can also arm from a **committed `.claude/tale-mode.json`** — e.g.
@@ -283,13 +285,14 @@ Two commands inside Claude Code:
 ```text
 /plugin marketplace add alicicek/tale-mode
 /plugin install tale-mode@tale-mode               # core: skill + commands + agent + the free loop
-/plugin install tale-mode-governor@tale-mode      # OPTIONAL: the Sonnet governor (per-turn cost)
+/plugin install tale-mode-governor@tale-mode      # OPTIONAL: the stuck-loop governor (zero idle cost)
 ```
 
 Then **restart Claude Code** (or run `/reload-plugins`). The **core** plugin is enabled on install
 (`defaultEnabled`), so the skill, the `/tale-mode:plan-phase` + `/tale-mode:kickoff-phase` commands,
 the `plan-reviewer` agent, and the free Layer-1 loop are live immediately. The **governor** is a
-*separate, optional* install — it adds a per-turn model call (see [Autonomous loop](#autonomous-loop)).
+*separate, optional* install — it spawns one read-only model call per stuck goal, and nothing
+otherwise (see [Autonomous loop](#autonomous-loop)).
 Requires **Claude Code ≥ v2.1.154** (kickoff auto-arm verified on ≥ v2.1.195; older builds degrade
 gracefully to agent-armed goals).
 
@@ -339,14 +342,16 @@ a handful of files you can skim in a few minutes.
   4. the **phase-marker hook** (`mark-phase.sh`, a UserPromptSubmit hook) writes a session-scoped
      `.claude/tale-mode.phase.<id>.json` when you run `/tale-mode:kickoff-phase`, so the Stop hook
      knows a build phase is active. It only writes that marker and always exits 0 with no output.
-  5. the **Layer-2 governor** (separate, optional plugin) is read-only on both hosts, by different
-     mechanisms: on Claude Code a (`Read`/`Grep`/`Glob`) Sonnet agent hook that cannot run shell;
-     on Codex a `type:"command"` hook (`codex-governor.sh`) that — only when a goal loop is stuck
-     AND you've granted the same cwd-root opt-in the loop uses — spawns **one** `codex exec`
-     reviewer locked to `--sandbox read-only` (OS-enforced; probe-proven unable to write even
-     /tmp) with a recursion sentinel, and posts its finding as an advisory message, never a
-     decision. Read [`plugins/tale-mode-governor/hooks/codex-governor.sh`](plugins/tale-mode-governor/hooks/codex-governor.sh)
-     (~100 lines) before installing.
+  5. the **Layer-2 governor** (separate, optional plugin) is one `type:"command"` hook
+     (`governor.sh`) on both hosts — a free bash gate that spawns **one** read-only reviewer only
+     when a goal loop has failed exactly twice. On Claude Code the reviewer is `claude -p` with
+     its tool set restricted to `Read`/`Grep`/`Glob` (no shell, no writes, nothing that can
+     prompt); on Codex it's `codex exec` locked to `--sandbox read-only` (OS-enforced;
+     probe-proven unable to write even /tmp) and additionally gated on the same cwd-root opt-in
+     the loop uses. A recursion sentinel keeps the child from re-triggering the hook, and the
+     finding is posted as an advisory message — never a decision. Kill switch: `TALE_GOVERNOR=0`.
+     Read [`plugins/tale-mode-governor/hooks/governor.sh`](plugins/tale-mode-governor/hooks/governor.sh)
+     (~130 lines) before installing.
 - It never asks Claude to read secrets, weaken security, or run destructive commands. The
   whole point is to make Claude *more* careful.
 
@@ -417,6 +422,7 @@ tale-mode/                                 (repo — also the plugin marketplace
 │   ├── test-session-start.sh              # tests for the SessionStart hook
 │   ├── test-mark-phase.sh                 # tests for the phase-marker hook
 │   ├── test-skills.sh                     # structural lint for the skills + output style
+│   ├── test-governor.sh                   # tests for the governor hook (both hosts, stubbed)
 │   └── verify-cross-platform.sh           # the one-shot deterministic gate (suites + validate + Codex shape)
 └── plugins/
     ├── tale-mode/                         # CORE plugin (free)
@@ -433,11 +439,11 @@ tale-mode/                                 (repo — also the plugin marketplace
     │   │   ├── session-start.sh           # always-on discipline injection (SessionStart)
     │   │   └── mark-phase.sh              # writes the phase marker on /tale-mode:kickoff-phase
     │   └── output-styles/tale-mode.md     # opt-in output style (selectable via /config)
-    └── tale-mode-governor/                # OPTIONAL companion (model call when stuck)
+    └── tale-mode-governor/                # OPTIONAL companion (one model call per stuck goal)
         ├── .claude-plugin/plugin.json     # metadata (depends on tale-mode)
         └── hooks/
-            ├── hooks.json                 # Layer 2: CC Sonnet agent hook + Codex command hook
-            └── codex-governor.sh          # the Codex read-only codex-exec governor
+            ├── hooks.json                 # Layer 2: one command hook, both hosts
+            └── governor.sh                # bash gate -> read-only claude -p / codex exec reviewer
 ```
 
 `SKILL.md` is the whole methodology and is the only file the claude.ai app needs.

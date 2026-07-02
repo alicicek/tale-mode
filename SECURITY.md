@@ -85,20 +85,25 @@ surface:
 ### The governor (optional companion — `plugins/tale-mode-governor/`)
 
 The governor is a **separate plugin you install only if you want it**. It adds one capability the
-core plugin doesn't have: when the autonomous loop is stuck, it runs a read-only reviewer to break
-the anchor. It is read-only on both hosts, by different mechanisms:
+core plugin doesn't have: it spawns a headless, read-only model call on your behalf — but only
+when the autonomous loop is genuinely stuck. One file carries all of it:
 
-- `hooks/hooks.json` + a `type:"agent"` entry — on Claude Code, a Sonnet reviewer restricted to
-  `Read`/`Grep`/`Glob`. It can read your code to spot the problem, but cannot run shell or write files.
-- `hooks/codex-governor.sh` — on Codex, a `type:"command"` hook. It does nothing until *all* of
-  these hold: the loop has failed a goal ≥ 2 times, you've granted the same `~/.tale-mode-allow-cwd-root`
-  opt-in the core loop uses, and it's actually running on Codex. Only then does it spawn **one**
-  `codex exec` reviewer locked to `--sandbox read-only` — OS-enforced (Seatbelt / seccomp), and
-  probe-verified unable to write even `/tmp`. A sentinel environment variable stops that child from
-  re-triggering the hook (no recursion), and the reviewer's finding is surfaced as an *advisory*
-  message — it can never block a turn or change the loop's decision. Disable it any time with
-  `TALE_CODEX_GOVERNOR=0`. The full design, and the live probes that justified building it, are in
-  [`docs/codex-governor-spike.md`](docs/codex-governor-spike.md).
+- `hooks/governor.sh` (a single `type:"command"` Stop hook, both hosts). At every turn-end it is a
+  free bash check that exits silently unless *all* of these hold: this session's goal-file exists,
+  it has failed **exactly 2** rounds (once per stuck goal, never per-round), and — on Codex —
+  you've granted the same `~/.tale-mode-allow-cwd-root` opt-in the core loop uses. Only then does
+  it spawn **one** reviewer:
+  - on Claude Code, `claude -p` pinned to a small model, with the built-in tool set restricted to
+    `Read`/`Grep`/`Glob` (no shell, no writes) **and** `--strict-mcp-config` stripping every MCP
+    server from the child — so nothing write-capable or external is offered at all; it draws from
+    your own subscription;
+  - on Codex, `codex exec` locked to `--sandbox read-only` — OS-enforced (Seatbelt / seccomp),
+    probe-verified unable to write even `/tmp`.
+  A sentinel environment variable stops the child from re-triggering this hook or the core loop
+  (no recursion — verified live on both mechanisms), the run is time-bounded, and the reviewer's
+  finding is surfaced as an *advisory* message — it can never block a turn or change the loop's
+  decision. Kill switch on both hosts: `TALE_GOVERNOR=0`. The full design, and the live probes
+  that justified building it, are in [`docs/codex-governor-spike.md`](docs/codex-governor-spike.md).
 
 ### Not part of the plugin
 
