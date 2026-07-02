@@ -311,7 +311,7 @@ A plugin loads into your agent's context and, in Claude Code, runs with the same
 privileges you have — so "only install plugins you trust" is the right instinct (it's
 [Anthropic's own advice](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview)).
 The honest answer to "is this safe?" isn't *trust me* — it's *read it, it's tiny.* The whole
-plugin is plain Markdown, three small shell scripts (a Stop gate, a tiny SessionStart injector, and a phase marker), and small JSON manifests —
+plugin is plain Markdown, four small shell scripts (a Stop gate, a tiny SessionStart injector, a phase marker, and a plan-mode read-only auto-approver), and small JSON manifests —
 a handful of files you can skim in a few minutes.
 
 **What it does / doesn't do**
@@ -342,7 +342,21 @@ a handful of files you can skim in a few minutes.
   4. the **phase-marker hook** (`mark-phase.sh`, a UserPromptSubmit hook) writes a session-scoped
      `.claude/tale-mode.phase.<id>.json` when you run `/tale-mode:kickoff-phase`, so the Stop hook
      knows a build phase is active. It only writes that marker and always exits 0 with no output.
-  5. the **Layer-2 governor** (separate, optional plugin) is one `type:"command"` hook
+  5. the **plan-mode read-only auto-approve hook** (`approve-readonly.sh`, PreToolUse on `Bash`)
+     kills the wall of permission dialogs during plan-mode investigation: **only** when the
+     session is in plan mode, it auto-approves a shell command **only** when every segment is a
+     whitelisted local read-only binary with no writing flags — no redirects (beyond `/dev/null`),
+     no substitution/heredocs, no network binaries, no sensitive-looking paths (`.ssh`, `.env`,
+     `credential`, `token`, …). It can only ever *remove a dialog you'd have said yes to*: its sole
+     possible output is "allow", it never denies or blocks, and anything it can't prove safe falls
+     through to the normal prompt. For a *Bash* command this approval is the **sole** gate (plan
+     mode blocks the Edit/Write tools, not a shell command's own writes), so the classifier is
+     default-deny and adversarial — it rejects `$`/backtick/backslash/substitution/heredoc, every
+     non-`/dev/null` redirect, quote-obfuscated flags, and any un-whitelisted binary or flag; it
+     was hardened against an adversarial review that broke an earlier blocklist version. Residual
+     risk (a whitelisted *read* of a non-denylisted path, not writes) and the fail-case-heavy test
+     suite are spelled out in [`SECURITY.md`](SECURITY.md). Kill switch: `TALE_PLAN_APPROVE=0`.
+  6. the **Layer-2 governor** (separate, optional plugin) is one `type:"command"` hook
      (`governor.sh`) on both hosts — a free bash gate that spawns **one** read-only reviewer only
      when a goal loop has failed exactly twice. On Claude Code the reviewer is `claude -p` with
      its tool set restricted to `Read`/`Grep`/`Glob` (no shell, no writes, nothing that can
@@ -360,7 +374,8 @@ a handful of files you can skim in a few minutes.
 `skills/trust/SKILL.md` · `skills/seed-gates/SKILL.md` · `skills/end-phase/SKILL.md` ·
 `commands/plan-phase.md` · `commands/kickoff-phase.md` ·
 `agents/plan-reviewer.md` · `hooks/stop-goal-loop.sh` · `hooks/session-start.sh` ·
-`hooks/mark-phase.sh` · `hooks/hooks.json` · `output-styles/tale-mode.md`.
+`hooks/mark-phase.sh` · `hooks/approve-readonly.sh` · `hooks/hooks.json` ·
+`output-styles/tale-mode.md`.
 
 Found a problem? See [`SECURITY.md`](SECURITY.md).
 
@@ -423,6 +438,7 @@ tale-mode/                                 (repo — also the plugin marketplace
 │   ├── test-mark-phase.sh                 # tests for the phase-marker hook
 │   ├── test-skills.sh                     # structural lint for the skills + output style
 │   ├── test-governor.sh                   # tests for the governor hook (both hosts, stubbed)
+│   ├── test-approve-readonly.sh           # tests for the plan-mode auto-approve (80 checks, fail-case heavy)
 │   └── verify-cross-platform.sh           # the one-shot deterministic gate (suites + validate + Codex shape)
 └── plugins/
     ├── tale-mode/                         # CORE plugin (free)
@@ -434,10 +450,11 @@ tale-mode/                                 (repo — also the plugin marketplace
     │   ├── commands/                      # /tale-mode:plan-phase · /tale-mode:kickoff-phase
     │   ├── agents/plan-reviewer.md        # the independent adversarial reviewer
     │   ├── hooks/
-    │   │   ├── hooks.json                 # wires the Stop + SessionStart + UserPromptSubmit hooks
+    │   │   ├── hooks.json                 # wires the Stop + SessionStart + UserPromptSubmit + PreToolUse hooks
     │   │   ├── stop-goal-loop.sh          # goal loop + committed-config auto-arm (Layer 1)
     │   │   ├── session-start.sh           # always-on discipline injection (SessionStart)
-    │   │   └── mark-phase.sh              # writes the phase marker on /tale-mode:kickoff-phase
+    │   │   ├── mark-phase.sh              # writes the phase marker on /tale-mode:kickoff-phase
+    │   │   └── approve-readonly.sh        # plan-mode-only auto-approve for provably read-only shell
     │   └── output-styles/tale-mode.md     # opt-in output style (selectable via /config)
     └── tale-mode-governor/                # OPTIONAL companion (one model call per stuck goal)
         ├── .claude-plugin/plugin.json     # metadata (depends on tale-mode)

@@ -30,8 +30,12 @@ description: Build ONE scoped phase of an existing multi-phase plan in a fresh s
 > command arms this automatically — don't double-arm there.
 
 **If your host has a plan mode, enter it now** and stay in it through the investigate-and-confirm
-steps below — no edits until the user approves. Read the named plan file (and any roadmap/README it
-points to) in full. Implement only the named chunk.
+steps below — no edits until the user approves. **Recon prompt-hygiene (plan mode prompts on any
+shell it can't prove read-only):** prefer the host's dedicated read tools over shell; keep shell
+recon to plain single-purpose read-only commands (on Claude Code, `ls`/`cat`/`grep`/`git log` and
+simple chains of them auto-approve via the bundled plan-mode hook); route loop-heavy sweeps through
+read-only sub-agents, so the user isn't walled with permission prompts. Read the named plan file
+(and any roadmap/README it points to) in full. Implement only the named chunk.
 
 **Before writing any code, interview the user — but interview SHARP.** Re-verify the plan's claims
 for this chunk against the actual code (the code is ground truth; the plan is a snapshot), and

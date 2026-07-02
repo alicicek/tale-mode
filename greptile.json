@@ -1,7 +1,3 @@
 {
-  "_note": "Belt against metered auto-reviews (Greptile went paid for T-Rex 2026-07). skipReview:AUTOMATIC suppresses reviews on PR open; a review runs ONLY when the owner comments @greptileai or adds the greptile-review label. Schema: greptile.com/docs/code-review-bot/greptile-json",
-  "skipReview": "AUTOMATIC",
-  "labels": ["greptile-review"],
-  "triggerOnUpdates": false,
-  "triggerOnDrafts": false
+  "skipReview": "AUTOMATIC"
 }

@@ -3,7 +3,12 @@ description: Start a scoped chunk of a larger plan in a fresh session — interv
 argument-hint: <plan-file-path> <phase/chunk id>
 ---
 **If your tooling has a plan mode, enter it now** and stay in it through the
-investigate-and-confirm steps below — no edits until I approve. Read the plan at
+investigate-and-confirm steps below — no edits until I approve. **Recon prompt-hygiene
+(plan mode prompts on any shell it can't prove read-only):** prefer the dedicated read
+tools (Read/Grep/Glob) over shell; keep shell recon to plain single-purpose read-only
+commands — `ls`/`cat`/`grep`/`git log` and simple chains of them auto-approve via the
+bundled plan-mode hook — and route loop-heavy sweeps through read-only sub-agents, so I'm
+not walled with permission prompts. Read the plan at
 the path in **$ARGUMENTS** (and any roadmap/README it points to) in full.
 Implement only the named chunk.
 

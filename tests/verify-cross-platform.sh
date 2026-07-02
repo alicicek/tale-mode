@@ -17,7 +17,7 @@ fail=0
 say(){ printf '  %-4s %s\n' "$1" "$2"; }
 
 echo "[1] unit suites (hook logic, both payload shapes; + the skills structural lint)"
-for t in test-stop-goal-loop test-mark-phase test-session-start test-skills test-governor; do
+for t in test-stop-goal-loop test-mark-phase test-session-start test-skills test-governor test-approve-readonly; do
   if bash "tests/$t.sh" >"/tmp/tm-$t.out" 2>&1; then say OK "$t"; else say FAIL "$t  (see /tmp/tm-$t.out)"; fail=1; fi
 done
 
