@@ -8,7 +8,11 @@ description: Plan a large, multi-phase feature to a high bar — verify against 
 > **Cross-platform note.** This is the skill form of the `/tale-mode:plan-phase` Claude Code
 > command, for hosts where slash commands don't exist (e.g. Codex). The two are kept in sync —
 > if you edit one, mirror the other. On Codex there is no `$ARGUMENTS`: take **the task to plan
-> from the user's prompt**. If your host has a plan mode, enter it.
+> from the user's prompt**. If your host has a plan mode, enter it — and keep recon
+> prompt-hygiene: prefer the host's dedicated read tools over shell, keep shell recon to plain
+> single-purpose read-only commands (on Claude Code, simple `ls`/`cat`/`grep`/`git log` chains
+> auto-approve via the bundled plan-mode hook), and route loop-heavy sweeps through read-only
+> sub-agents.
 
 Plan the user's task at a high bar. Do not skip a step:
 

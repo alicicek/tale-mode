@@ -2,7 +2,11 @@
 description: Plan a task to a high bar — verify against the code, receipts on every decision, adversarial review, runnable verification gates.
 argument-hint: <the task or feature to plan>
 ---
-Plan **$ARGUMENTS** at a high bar. If your tooling has a plan mode, enter it. Do
+Plan **$ARGUMENTS** at a high bar. If your tooling has a plan mode, enter it —
+and keep recon prompt-hygiene: prefer the dedicated read tools (Read/Grep/Glob)
+over shell, keep shell recon to plain single-purpose read-only commands (simple
+`ls`/`cat`/`grep`/`git log` chains auto-approve via the bundled plan-mode hook),
+and route loop-heavy sweeps through read-only sub-agents. Do
 not skip a step:
 
 1. **Verify, don't trust.** Launch a read-only/Explore agent to read the relevant

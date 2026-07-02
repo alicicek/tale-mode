@@ -67,6 +67,40 @@ surface:
   kickoff is invoked as a skill whose prompt may not carry the trigger text, so there the
   `kickoff-phase` skill writes the pending marker the Stop hook adopts — see above — and the
   agent-written `.claude/active-goal.json` stays the ad-hoc path.)
+- `hooks/approve-readonly.sh` + `hooks/hooks.json` — the **plan-mode read-only auto-approve**
+  (a PreToolUse hook, matcher `Bash`; Claude Code only — on any host that doesn't send
+  `permission_mode` it is inert). Plan mode prompts for every shell command it can't prove
+  read-only, which turns tale-mode's investigation ceremonies into a wall of dialogs. This hook
+  removes the dialog for the provably-safe subset only: it acts **only** when the payload says
+  `permission_mode=="plan"`, and its **only possible output is an "allow"** — it never emits
+  deny/ask, so it can only ever remove a dialog you would have approved, never block anything.
+  **The security-critical fact:** for the *Bash* tool this "allow" is the **sole** gate on the
+  command. Plan mode blocks the Edit/Write *tools*, but a shell command's own file writes and
+  process execution are gated **only** by the permission dialog this hook suppresses — so a
+  classifier gap here is not "a silent read", it is arbitrary write/exec. The classifier is
+  therefore **default-deny and adversarial**, and was hardened against a first-round review that
+  broke an earlier blocklist design (quoted flags like `find . '-exec' …` slipped it because the
+  shell strips the quote and the hook didn't). It now: rejects any command containing `$` /
+  backtick / backslash / process-substitution / heredoc (the expansion and escaping it can't
+  faithfully resolve); rejects every output redirect except a token-boundary `>/dev/null` and
+  fd-dups; requires each segment's `argv[0]` to be a **bare whitelisted command name**; rejects any
+  *quote-obfuscated* flag and matches every guard on the **dequoted** tokens (so its view equals
+  the shell's); allows args freely only for binaries audited to have no write/exec flag, and
+  positively guards every binary that does (`sort`/`find`/`rg`/`git`/`sed`/`date`/`jq`/…);
+  whitelists **no** network binary, so exfiltration is out of scope by construction. Anything it
+  can't prove read-only falls through to the normal prompt. **Honest residual risk:** what remains
+  is a whitelisted **read** of a file whose path isn't on the sensitive-term denylist (`.ssh`,
+  `.pem`, `.env`, `credential`, `token`, …) running without its per-command dialog — a substring
+  denylist can't be complete, so a prompt-injected agent could read a non-obvious file into
+  context. The denylist scans the command *text*, not its *output*, so the same class covers reads
+  whose output can carry a secret the command never named: `git config`'s dump forms
+  (`--list`/`--get-regexp`) are excluded from the whitelist for exactly this reason (only named-key
+  `--get`/`--get-all` reads pass, and the named key is denylist-scanned), but e.g. `git remote -v`
+  can still surface a token-embedded remote URL if one exists. That is a strictly smaller surface than "writes are impossible" — which is **not** what
+  this provides. If you'd rather keep every plan-mode dialog, `TALE_PLAN_APPROVE=0` disables just
+  this hook. The 100-plus-case `tests/test-approve-readonly.sh` is deliberately fail-case-heavy:
+  every write/exec/smuggle/obfuscated-flag payload must fall through, because a guard that can't
+  fail isn't a guard.
 - `output-styles/tale-mode.md` — an **opt-in** output style (you select it via `/config`): plain
   Markdown instructions that shape how Claude works, inert until you choose it.
 - `agents/plan-reviewer.md` — a subagent granted `Bash` + `WebFetch`. These run only when you
