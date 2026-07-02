@@ -22,6 +22,8 @@ don't.
 ├─ LAYER B · ENFORCEMENT (deterministic bash hooks) ──────────────────┤
 │  session-start.sh    injects 3 core rules into EVERY session        │
 │  mark-phase.sh       records "a deliberate build phase started"     │
+│  approve-readonly.sh plan mode only: auto-approve shell it can      │
+│                      PROVE read-only; the rest → normal dialog      │
 │  stop-goal-loop.sh   THE LOOP — a turn cannot end until a real      │
 │                      shell check passes                             │
 ├─ LAYER C · REVIEW (eyes that aren't the author's) ──────────────────┤
@@ -48,6 +50,10 @@ closes it further (different training, different blind spots).
    the work matches its description.
 4. The **Stop hook** runs at every turn-end but is engineered to be a silent
    few-millisecond no-op unless something armed it. Normal turns never feel it.
+5. The **plan-mode auto-approve** (a PreToolUse hook on `Bash`) is the same shape: it
+   runs on every shell call but exits instantly outside plan mode. In plan mode it
+   emits an "allow" only for commands it can prove read-only; everything else falls
+   through to the normal permission dialog — it never denies.
 
 ## The autonomous loop, in detail
 
@@ -105,6 +111,27 @@ Trusting code is a human act. The same principle covers the Codex opt-in
 (`~/.tale-mode-allow-cwd-root`): capabilities that widen the blast radius live in *your*
 home directory, written only by you.
 
+## Plan mode without the dialog wall
+
+Tale Mode's plan/kickoff ceremonies live in plan mode, where the harness prompts for
+every shell command it can't prove read-only — turning a careful investigation into a
+wall of permission dialogs. `approve-readonly.sh` (a PreToolUse hook on `Bash`) removes
+the dialogs for the provably-safe subset only.
+
+The security stance is the interesting part. Plan mode blocks the Edit/Write *tools*,
+but a shell command's own file writes are gated only by the dialog this hook
+suppresses — so its "allow" is the **sole** gate on that command, and a classifier gap
+would mean arbitrary write/exec, not a silent read. The classifier is therefore
+default-deny and adversarial: it rejects anything carrying expansion it can't faithfully
+resolve (`$`, backticks, backslashes, process substitution, heredocs), every output
+redirect except a token-boundary `>/dev/null`, quote-obfuscated flags (every guard
+matches the same dequoted tokens the shell will run), sensitive-looking paths, and any
+binary or flag not positively whitelisted. Its only possible output is "allow" — it
+never denies or blocks, so the worst it can do is fail to remove a dialog you'd have
+approved anyway. The honest residual risk (a whitelisted *read* of a non-denylisted
+path) and the fail-case-heavy 118-check suite are written up in
+[`SECURITY.md`](../SECURITY.md). Kill switch: `TALE_PLAN_APPROVE=0`.
+
 ## Cross-platform notes
 
 Codex loads Claude-format plugins, with three differences Tale Mode absorbs:
@@ -122,8 +149,9 @@ All three paths were verified against live sessions — the receipts are in
 
 ## What it costs, and what it's honestly worth
 
-The default install costs ~200 tokens of context per session and a no-op hook per
-turn-end. The heavy machinery only runs when invoked.
+The default install costs ~200 tokens of context per session and two silent hooks (a
+no-op Stop gate at every turn-end, a plan-mode-only check per Bash call). The heavy
+machinery only runs when invoked.
 
 The candid 80/20: the **discipline layer** (skill + always-on rules + the
 plan-phase → kickoff-phase pipeline) is most of the value — it's a checklist against
