@@ -70,6 +70,10 @@ OUT=$(printf '{"session_id":"s1","cwd":"%s"}' "$WORK" | env -u PLUGIN_ROOT CLAUD
 ok "TALE_GOVERNOR=0: silent, not spawned"        '[ "$RC" -eq 0 ] && [ -z "$OUT" ] && ! cc_spawned'
 OUT=$(printf '{"session_id":"s1","cwd":"%s"}' "$WORK" | env -u CLAUDE_PROJECT_DIR PLUGIN_ROOT=/fake TALE_CODEX_GOVERNOR=0 TALE_ALLOW_CWD_ROOT=1 STUB_LOG="$SLOG" PATH="$TPATH" bash "$HOOK" 2>&1); RC=$?
 ok "TALE_CODEX_GOVERNOR=0 (back-compat): silent" '[ "$RC" -eq 0 ] && [ -z "$OUT" ] && ! cx_spawned'
+# ...but the legacy switch keeps its v1 SCOPE: it must NOT silence the Claude Code side.
+newwork; goal 2
+OUT=$(printf '{"session_id":"s1","cwd":"%s"}' "$WORK" | env -u PLUGIN_ROOT -u TALE_GOVERNOR_ACTIVE CLAUDE_PROJECT_DIR="$WORK" TALE_CODEX_GOVERNOR=0 STUB_LOG="$SLOG" STUB_REPLY="finding z" PATH="$TPATH" bash "$HOOK" 2>&1); RC=$?
+ok "TALE_CODEX_GOVERNOR=0 does NOT kill CC (v1 scope preserved)" 'printf "%s" "$OUT" | jq -e ".systemMessage" >/dev/null && cc_spawned'
 
 echo "3) neither host signature (no CLAUDE_PROJECT_DIR, no PLUGIN_ROOT) -> silent no-op"
 newwork; goal 2

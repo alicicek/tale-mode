@@ -12,7 +12,7 @@
 #   turn-end just to discover "nothing is stuck" — the model call WAS the check. v2 inverts it:
 #   this bash gate answers "stuck?" in milliseconds for free, and a model is spawned only at the
 #   two-strike moment, once per goal. Idle cost: zero tokens. Escalation binary per host:
-#     Claude Code -> `claude -p` pinned to a small model, --tools restricted to Read/Grep/Glob
+#     Claude Code -> `claude -p` pinned to claude-sonnet-4-6 by default, --tools restricted to Read/Grep/Glob
 #     Codex       -> `codex exec --sandbox read-only --ephemeral`  (OS-enforced read-only)
 #   Both draw from the user's own subscription/plan for that host.
 #
@@ -38,7 +38,8 @@
 #   through jq --arg into a systemMessage — it can never smuggle a decision. This hook NEVER
 #   emits a decision, always exits 0, and fails silent on every error.
 #
-# KNOBS  TALE_GOVERNOR=0 (kill switch, both hosts; TALE_CODEX_GOVERNOR=0 still honored)
+# KNOBS  TALE_GOVERNOR=0 (kill switch, both hosts)
+#        TALE_CODEX_GOVERNOR=0 (legacy v1 switch — kills the CODEX side only, as in v1)
 #        TALE_GOVERNOR_MODEL (CC reviewer model, default claude-sonnet-4-6)
 #        TALE_GOVERNOR_TIMEOUT (seconds, default 90; the hooks.json 120s cap is the belt)
 set -uo pipefail
@@ -46,9 +47,10 @@ set -uo pipefail
 # 1. Recursion sentinel — we ARE a child's hook: do nothing, instantly.
 [ -n "${TALE_GOVERNOR_ACTIVE:-}" ] && exit 0
 
-# 2. Kill switches (unified + the v1 Codex-era name for back-compat).
+# 2. Kill switch (unified, both hosts). The v1-era TALE_CODEX_GOVERNOR keeps its v1 SCOPE —
+#    Codex only — and is checked after host detection below, so a user who set it to silence
+#    the Codex governor does not silently lose Claude Code coverage on upgrade.
 [ "${TALE_GOVERNOR:-1}" = "0" ] && exit 0
-[ "${TALE_CODEX_GOVERNOR:-1}" = "0" ] && exit 0
 
 # 3. Platform + tooling. jq is required everywhere; the escalation binary per host.
 command -v jq >/dev/null 2>&1 || exit 0
@@ -57,6 +59,7 @@ if [ -n "${CLAUDE_PROJECT_DIR:-}" ]; then
   HOST=cc;    command -v claude >/dev/null 2>&1 || exit 0
 elif [ -n "${PLUGIN_ROOT:-}" ]; then
   HOST=codex; command -v codex  >/dev/null 2>&1 || exit 0
+  [ "${TALE_CODEX_GOVERNOR:-1}" = "0" ] && exit 0   # legacy Codex-scoped kill switch (v1 semantics)
 else
   exit 0   # neither host signature -> not a supported runtime
 fi

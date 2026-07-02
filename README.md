@@ -206,7 +206,7 @@ plugin; there's nothing to wire up.
   turn-end, and exactly when a goal first fails twice — the two-strike moment — it spawns **one**
   read-only, fresh-context reviewer that reads the plan and code with an adversarial frame and
   names the thing Layer 1 can't see: an unverified foundation, a violated constraint from the
-  plan, or a band-aid. On Claude Code the reviewer is `claude -p` pinned to a small model and
+  plan, or a band-aid. On Claude Code the reviewer is `claude -p` pinned to `claude-sonnet-4-6` (override via `TALE_GOVERNOR_MODEL`) and
   restricted to read-only tools; on Codex it's an OS-sandboxed `codex exec --sandbox read-only`
   ([how both were verified live](docs/codex-governor-spike.md)). It only *advises* — it never
   blocks; Layer 1 owns the decision. Install it if you want it:

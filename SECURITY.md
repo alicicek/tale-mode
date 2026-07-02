@@ -93,7 +93,7 @@ when the autonomous loop is genuinely stuck. One file carries all of it:
   it has failed **exactly 2** rounds (once per stuck goal, never per-round), and — on Codex —
   you've granted the same `~/.tale-mode-allow-cwd-root` opt-in the core loop uses. Only then does
   it spawn **one** reviewer:
-  - on Claude Code, `claude -p` pinned to a small model, with the built-in tool set restricted to
+  - on Claude Code, `claude -p` pinned to `claude-sonnet-4-6` by default (`TALE_GOVERNOR_MODEL` overrides), with the built-in tool set restricted to
     `Read`/`Grep`/`Glob` (no shell, no writes) **and** `--strict-mcp-config` stripping every MCP
     server from the child — so nothing write-capable or external is offered at all; it draws from
     your own subscription;
