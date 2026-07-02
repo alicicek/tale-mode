@@ -11,7 +11,9 @@ Not smarter — *more disciplined.* A drop-in plugin for **Claude Code and OpenA
 any Claude work like a careful senior engineer: verify the real code instead of trusting memory,
 put a source on every decision, run an *independent* adversarial review before it says "done," and
 keep durable notes. It also ships a **self-armed autonomous loop** that keeps working until a real
-check passes. Everything is right-sized, so a typo fix stays a typo fix.
+check passes, and makes plan-mode investigation **dialog-free** (a fail-closed hook auto-approves
+provably read-only shell — plan mode only, so you approve the plan, not fifty `grep` prompts).
+Everything is right-sized, so a typo fix stays a typo fix.
 
 The model got pulled; the method didn't.
 
@@ -59,7 +61,7 @@ but hooks can't. *Words drift; hooks don't.*
 
 ```text
 A · INSTRUCTIONS   the method the model reads      skill · phase commands · output style
-B · ENFORCEMENT    deterministic bash hooks        session-start · phase marker · the Stop-hook loop
+B · ENFORCEMENT    deterministic bash hooks        session-start · phase marker · plan-mode read-only approve · the Stop-hook loop
 C · REVIEW         eyes that aren't the author's   plan-reviewer agent · optional governor
 ```
 
@@ -156,6 +158,10 @@ diff. (The discipline that catches cross-browser bugs in one pass instead of fiv
 - `/tale-mode:kickoff-phase <plan-file> <phase>` — implement **one** phase of a larger plan in
   a fresh session. **Runs under plan mode**: re-verifies the plan against the
   current code, interviews you, and waits for your approval before writing anything.
+  The investigation itself stays fluid — provably read-only commands (`ls`, `grep`,
+  `git log`, …) are auto-approved in plan mode by a fail-closed hook, so the one
+  approval you give is the plan (details + kill switch in
+  [Security & trust](#security--trust)).
 
 ### The pipeline — one phase per session
 
@@ -201,7 +207,7 @@ plugin; there's nothing to wire up.
   a deploy, a go/no-go — instead of grinding the impossible. **Silent on any normal
   (non-phase, clean) turn.** When armed, it appends one JSONL verdict line per round to a local
   `.claude/tale-mode.log` audit trail (disable with `TALE_VERDICT_LOG=/dev/null`).
-  161 tests cover the fail/pass/pause/edge/log paths (incl. the committed-config trust/dirty/precedence, cross-platform cwd-root, pending-marker adoption, no-progress, and multi-line-gate cases).
+  164 checks (56 cases) cover the fail/pass/pause/edge/log paths (incl. the committed-config trust/dirty/precedence, cross-platform cwd-root, pending-marker adoption, no-progress, and multi-line-gate cases).
 - **Layer 2 — the governor** (optional companion plugin, v2): a free bash gate watches every
   turn-end, and exactly when a goal first fails twice — the two-strike moment — it spawns **one**
   read-only, fresh-context reviewer that reads the plan and code with an adversarial frame and
@@ -433,7 +439,7 @@ tale-mode/                                 (repo — also the plugin marketplace
 │   ├── codex-governor-spike.md            #   Codex governor go/no-go research note
 │   └── HOOKS.md                           #   optional deterministic typecheck/lint gates
 ├── tests/
-│   ├── test-stop-goal-loop.sh             # tests for the Stop loop hook (161 checks / 56 cases)
+│   ├── test-stop-goal-loop.sh             # tests for the Stop loop hook (164 checks / 56 cases)
 │   ├── test-session-start.sh              # tests for the SessionStart hook
 │   ├── test-mark-phase.sh                 # tests for the phase-marker hook
 │   ├── test-skills.sh                     # structural lint for the skills + output style
