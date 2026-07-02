@@ -57,7 +57,11 @@ required `/code-review` on the diff plus `/security-review` for anything touchin
 auth/money/secrets/storage (effort/scope per the project's CLAUDE.md). **These are
 bundled Claude Code skills — invoke them via the Skill tool (`/code-review
 <base>...<branch>` reviews the local diff, no PR needed); actually run them, don't
-substitute a hand-rolled review.** **Then close
+substitute a hand-rolled review.** **Run the review fan-out lean:** route a large
+finder/reviewer set through a Workflow (or have each agent return a terse verdict), keep
+raw logs / JSON / PR-comment dumps OUT of your context — extract the finding first — and
+batch independent calls into one round-trip; a hand-spawned fan-out that reports long
+findings back into the window is the dominant context cost of a review session. **Then close
 the review loop — never ship the fix delta unreviewed:** run tale-mode §5's
 *fresh-eyes* pass (a clean-context sub-agent — the `plan-reviewer` agent for
 high-stakes — or a `/clear`'d self-review, given only the diff + spec, framed as a

@@ -152,6 +152,21 @@ double-orchestration (this fan-out already covers it). The model can't set ultra
 itself, so when you spot a real breadth task, **tell the user to switch** (`/effort` →
 ultracode) rather than grinding it single-threaded.
 
+**Context economy — what returns into your window is the bill.** Every sub-agent return,
+tool result, and pasted blob stays in context and is **re-read on every later turn**
+(cache-read tokens dominate a long session's usage cost — distinct from the *coverage*
+question above; this is the cost of *however* you fan out). So: (a) brief each delegate to
+return a **terse verdict** — the finding + citations, never its raw logs, file dumps, or a
+long prose report; (b) when the fan-out is large (many agents, or verbose returns — e.g.
+§5's multi-angle `/code-review` + reviewers), **route it through a Workflow** so the agents'
+intermediate I/O stays *out* of your window and only a compact synthesis returns — a
+hand-spawned fan-out whose N agents each report a long finding *into* your context is the
+same coverage at many times the cost; (c) **batch independent tool calls into ONE message** —
+each round-trip re-reads the whole window, so N sequential calls cost ~N× the reads of one
+parallel batch. Never paste a raw JSON / API response / PR-comment dump into context —
+extract the finding first (`jq`/`grep` in the command, or a sub-agent that returns just the
+answer). `/clear` between phases (§0) is the same lever at session scale.
+
 ### 4. Verify each stage — against ground truth
 Before advancing, check the stage two ways:
 - **Internal:** does the output actually match what the stage was meant to produce?
