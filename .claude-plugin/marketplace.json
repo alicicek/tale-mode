@@ -20,7 +20,7 @@
     {
       "name": "tale-mode-governor",
       "source": "./plugins/tale-mode-governor",
-      "description": "Optional companion to tale-mode: the read-only Sonnet governor (Layer 2). Adds a per-turn model call — install only if you want anchor-breaking when the loop is stuck.",
+      "description": "Optional companion to tale-mode: the read-only stuck-loop governor (Layer 2). Zero idle cost — a free bash gate escalates to ONE read-only model call (claude -p on Claude Code, sandboxed codex exec on Codex) exactly when a goal first fails twice, and returns an advisory finding. Install if you want anchor-breaking on stuck loops.",
       "category": "productivity",
       "keywords": ["workflow", "stop-hook", "governor"]
     }

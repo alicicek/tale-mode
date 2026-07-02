@@ -2,8 +2,9 @@
 
 **Date:** 2026-07-01 · **Verdict: CONDITIONAL GO — upgraded to GO the same day.** All three
 gating probes ran against the LIVE local Codex (0.142.4) via `codex exec` and passed; the
-governor shipped as `plugins/tale-mode-governor/hooks/codex-governor.sh` (v1.2.0), stub-tested in
-`tests/test-codex-governor.sh` and security-reviewed. **Probe results (observed, not inferred):**
+governor shipped as `plugins/tale-mode-governor/hooks/codex-governor.sh` (v1.2.0), stub-tested and
+security-reviewed. *(v2.0.0 later unified it with a Claude Code `claude -p` branch as
+`hooks/governor.sh` — same guards, zero idle cost on both hosts; suite: `tests/test-governor.sh`.)* **Probe results (observed, not inferred):**
 (1) *Hooks fire under `codex exec`* — the plugin SessionStart hook executed inside an exec run
 (env dump captured), and the L1 Stop hook blocked an exec turn, iterated it, and disarmed at
 `max_rounds` (verdict-log line recorded) → the recursion hazard is real; the sentinel guard chain

@@ -345,12 +345,14 @@ force a pass; that band-aid is the exact thing this system exists to prevent.
 **Arm it for** observable goals (a debug — "the repro passes"; a feature — "the test is green";
 a phase). Not pure-judgment goals (no deterministic check → nothing to gate on).
 
-**Layer 2 (the adversarial governor — optional companion plugin):** a `type:"agent"` Stop hook —
-a FRESH-CONTEXT, **read-only** reviewer (Read/Grep/Glob) pinned to Sonnet that, once you're stuck
-(`rounds` ≥ 2), reads the goal/plan/code with a skeptic's frame and names the unverified *foundation*,
-a violated *documented constraint*, or a *band-aid* — the failures Layer 1 can't see. It breaks the
-anchor (verified to fire in `-p`). It ships as the **separate `tale-mode-governor` plugin** (it makes a
-per-turn model call, so it's opt-in): `/plugin install tale-mode-governor@tale-mode` to add it.
+**Layer 2 (the adversarial governor — optional companion plugin):** a command Stop hook whose free
+bash gate escalates exactly when a goal first fails twice (`rounds == 2`): it spawns ONE
+FRESH-CONTEXT, **read-only** reviewer (Claude Code: `claude -p` restricted to Read/Grep/Glob;
+Codex: OS-sandboxed `codex exec -s read-only`) that reads the goal/plan/code with a skeptic's frame
+and names the unverified *foundation*, a violated *documented constraint*, or a *band-aid* — the
+failures Layer 1 can't see. Its finding arrives as an ADVISORY message (it never blocks; Layer 1
+owns the decision). Zero idle cost — no model call unless a loop is genuinely stuck. It ships as
+the **separate `tale-mode-governor` plugin**: `/plugin install tale-mode-governor@tale-mode`.
 
 **Live-test the runtime** (the script proves the hook's logic; only a live session proves Claude
 Code re-runs the turn on a block): arm `{"goal":"marker","check":"test -f /tmp/tale-done","rounds":0,"max_rounds":5}`,

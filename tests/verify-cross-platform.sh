@@ -17,7 +17,7 @@ fail=0
 say(){ printf '  %-4s %s\n' "$1" "$2"; }
 
 echo "[1] unit suites (hook logic, both payload shapes; + the skills structural lint)"
-for t in test-stop-goal-loop test-mark-phase test-session-start test-skills test-codex-governor; do
+for t in test-stop-goal-loop test-mark-phase test-session-start test-skills test-governor; do
   if bash "tests/$t.sh" >"/tmp/tm-$t.out" 2>&1; then say OK "$t"; else say FAIL "$t  (see /tmp/tm-$t.out)"; fail=1; fi
 done
 
@@ -28,8 +28,8 @@ else say SKIP "claude CLI not on PATH"; fi
 
 echo "[3] Codex parse-compatibility (every plugin's hooks.json)"
 # Events Codex's hook parser accepts (strict serde enum — an unknown event fails the WHOLE file).
-# Checked for BOTH plugins: a bad governor hooks.json would spam a parse warning on every Codex
-# start even though its type:agent hook is skipped there anyway.
+# Checked for BOTH plugins: the governor's type:command hook actively RUNS on Codex (v2), so a
+# malformed governor hooks.json would both spam a parse warning and silently disable the governor.
 KNOWN='SessionStart|SessionEnd|Stop|UserPromptSubmit|PreToolUse|PostToolUse|PermissionRequest|SubagentStart|SubagentStop|PreCompact|PostCompact|Notification'
 for hj in plugins/*/hooks/hooks.json; do
   if ! jq -e . "$hj" >/dev/null 2>&1; then say FAIL "$hj is not valid JSON"; fail=1; continue; fi
